@@ -1,4 +1,6 @@
 import { useAuth } from '../hooks/useAuth'
+import { useEffect, useState } from 'react'
+import api from '../services/api'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
 import { 
@@ -26,13 +28,7 @@ export function ClienteDashboard({ onTabChange }: ClienteDashboardProps) {
       icon: Calendar,
       color: 'from-blue-500 to-blue-600'
     },
-    {
-      id: 'calculadora',
-      title: 'Calcular Orçamento',
-      description: 'Simule o valor dos serviços e peças',
-      icon: Calculator,
-      color: 'from-green-500 to-green-600'
-    },
+    
     {
       id: 'acompanhamento',
       title: 'Acompanhar Serviços',
@@ -60,6 +56,43 @@ export function ClienteDashboard({ onTabChange }: ClienteDashboardProps) {
       data: '2024-01-20'
     }
   ]
+
+  const [services, setServices] = useState<any[]>([])
+  const [loadingServices, setLoadingServices] = useState(false)
+
+  useEffect(() => {
+    const fetchServices = async () => {
+      if (!user) return
+      setLoadingServices(true)
+      // try a few endpoints to fetch services for this user
+      try {
+        const r1 = await api.get('/me/services')
+        setServices(r1.data || [])
+        setLoadingServices(false)
+        return
+      } catch (e) {}
+
+      try {
+        const r2 = await api.get(`/users/${user.id}/services`)
+        setServices(r2.data || [])
+        setLoadingServices(false)
+        return
+      } catch (e) {}
+
+      try {
+        const r3 = await api.get(`/services?userId=${user.id || user.userId}`)
+        setServices(r3.data || [])
+        setLoadingServices(false)
+        return
+      } catch (e) {
+        console.warn('ClienteDashboard: não foi possível carregar serviços recentes', e)
+      }
+
+      setLoadingServices(false)
+    }
+
+    fetchServices()
+  }, [user])
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -152,20 +185,22 @@ export function ClienteDashboard({ onTabChange }: ClienteDashboardProps) {
             <CardTitle>Últimos Serviços</CardTitle>
           </CardHeader>
           <CardContent>
-            {recentServices.length > 0 ? (
+            {loadingServices ? (
+              <div className="text-center py-8 text-gray-500">Carregando serviços...</div>
+            ) : services.length > 0 ? (
               <div className="space-y-4">
-                {recentServices.map((service) => (
-                  <div key={service.id} className="flex items-center justify-between p-4 border rounded-lg">
+                {services.map((service: any) => (
+                  <div key={service.id || service.numero} className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="flex items-center space-x-4">
                       {getStatusIcon(service.status)}
                       <div>
-                        <div className="font-medium">{service.numero}</div>
-                        <div className="text-sm text-gray-600">{service.veiculo} - {service.servico}</div>
+                        <div className="font-medium">{service.numero || service.orderNumber || service.id}</div>
+                        <div className="text-sm text-gray-600">{service.veiculo || service.vehicle || service.carModel} - {service.servico || service.service || service.description}</div>
                       </div>
                     </div>
                     <div className="text-right">
                       <div className="text-sm font-medium">{getStatusText(service.status)}</div>
-                      <div className="text-xs text-gray-500">{service.data}</div>
+                      <div className="text-xs text-gray-500">{service.data || service.date || service.createdAt}</div>
                     </div>
                   </div>
                 ))}

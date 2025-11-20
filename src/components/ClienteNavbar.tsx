@@ -21,7 +21,7 @@ import {
   Menu,
   User
 } from 'lucide-react'
-import { toast } from 'sonner@2.0.3'
+import { toast } from 'sonner'
 
 interface ClienteNavbarProps {
   activeTab: string
@@ -31,7 +31,6 @@ interface ClienteNavbarProps {
 const menuItems = [
   { id: 'dashboard', label: 'Dashboard', icon: Home },
   { id: 'agendamento', label: 'Agendar Serviço', icon: Calendar },
-  { id: 'calculadora', label: 'Calcular Orçamento', icon: Calculator },
   { id: 'acompanhamento', label: 'Acompanhar Serviço', icon: Eye },
 ]
 
@@ -62,6 +61,7 @@ function NavItems({ mobile = false, onTabChange, activeTab }: { mobile?: boolean
 export function ClienteNavbar({ activeTab, onTabChange }: ClienteNavbarProps) {
   const { user, signOut } = useAuth()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
 
@@ -71,6 +71,7 @@ export function ClienteNavbar({ activeTab, onTabChange }: ClienteNavbarProps) {
       await signOut()
       toast.success('Sessão encerrada com sucesso')
       setLogoutDialogOpen(false)
+      setUserMenuOpen(false)
     } catch (error) {
       console.error('Erro ao fazer logout:', error)
       toast.error('Erro ao encerrar sessão')
@@ -86,56 +87,61 @@ export function ClienteNavbar({ activeTab, onTabChange }: ClienteNavbarProps) {
         <div className="flex flex-col flex-grow pt-5 bg-white border-r border-gray-200 overflow-y-auto">
           <div className="flex items-center flex-shrink-0 px-4">
             <div className="flex items-center">
-              <div className="bg-green-600 p-2 rounded-lg">
-                <Wrench className="h-6 w-6 text-white" />
-              </div>
-              <div className="ml-3">
-                <h2>Portal do Cliente</h2>
-                <p className="text-sm text-gray-500">Oficina Pro</p>
-              </div>
+              <img 
+                src="/Pitstop.png" 
+                alt="PitStop" 
+                className="h-13 w-13 object-contain"
+              />
+              
             </div>
           </div>
           
           <div className="mt-8 flex-grow flex flex-col">
-            <div className="flex-1 px-4">
+            <div className="flex-1 px-4 pb-4">
               <NavItems onTabChange={onTabChange} activeTab={activeTab} />
-            </div>
-          </div>
+              
+              {/* User Profile Section - Desktop */}
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <div className="relative">
+                  <button
+                    onClick={() => setUserMenuOpen(!userMenuOpen)}
+                    className="w-full flex items-center justify-between p-2 hover:bg-green-50 rounded-lg transition-colors"
+                  >
+                    <div className="flex items-center min-w-0">
+                      <Avatar className="h-8 w-8 mr-3 flex-shrink-0">
+                        <AvatarFallback className="bg-green-100 text-green-700">
+                          {user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || '?'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="text-left min-w-0">
+                        <div className="text-sm font-medium truncate">{user?.name || 'Cliente'}</div>
+                        <div className="text-xs text-gray-500 truncate">{user?.email}</div>
+                      </div>
+                    </div>
+                    <User className="h-4 w-4 flex-shrink-0" />
+                  </button>
 
-          <div className="flex-shrink-0 px-4 py-4 border-t border-gray-200">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="w-full justify-start p-2 hover:bg-green-50">
-                  <Avatar className="h-8 w-8 mr-3">
-                    <AvatarFallback className="bg-green-100 text-green-700">
-                      {user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="text-left flex-1">
-                    <div className="text-sm truncate">{user?.name || 'Cliente'}</div>
-                    <div className="text-xs text-gray-500 truncate">{user?.email}</div>
-                  </div>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-56 z-[100]" side="top" sideOffset={8}>
-                <DropdownMenuItem className="cursor-pointer">
-                  <User className="mr-2 h-4 w-4" />
-                  Perfil
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
+                  {/* User Menu Dropdown */}
+                  {userMenuOpen && (
+                    <div className="absolute bottom-full left-0 right-0 mb-2 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+                      
+                      <div className="border-t border-gray-200" />
+                      <button
+                        onClick={() => {
+                          setUserMenuOpen(false)
+                          setLogoutDialogOpen(true)
+                        }}
+                        className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 text-sm flex items-center font-medium"
+                      >
+                        <LogOut className="mr-2 h-4 w-4" />
+                        Sair da Conta
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Logout Dialog */}
                 <AlertDialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen}>
-                  <AlertDialogTrigger asChild>
-                    <DropdownMenuItem 
-                      className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50"
-                      onSelect={(e) => {
-                        e.preventDefault()
-                        setLogoutDialogOpen(true)
-                      }}
-                    >
-                      <LogOut className="mr-2 h-4 w-4" />
-                      Sair da Conta
-                    </DropdownMenuItem>
-                  </AlertDialogTrigger>
                   <AlertDialogContent className="z-[200]">
                     <AlertDialogHeader>
                       <AlertDialogTitle>Confirmar Saída</AlertDialogTitle>
@@ -167,8 +173,8 @@ export function ClienteNavbar({ activeTab, onTabChange }: ClienteNavbarProps) {
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -266,11 +272,6 @@ export function ClienteNavbar({ activeTab, onTabChange }: ClienteNavbarProps) {
                   <div className="font-medium truncate">{user?.name || 'Cliente'}</div>
                   <div className="text-xs text-gray-500 truncate">{user?.email}</div>
                 </div>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="cursor-pointer">
-                  <User className="mr-2 h-4 w-4" />
-                  Perfil
-                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <AlertDialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen}>
                   <AlertDialogTrigger asChild>

@@ -20,6 +20,7 @@ export function Dashboard() {
   const { getDashboardStats, loading } = useApi()
   const { user } = useAuth()
   const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     loadStats()
@@ -27,10 +28,15 @@ export function Dashboard() {
 
   const loadStats = async () => {
     try {
+      console.log('Iniciando carregamento de estatísticas...')
       const data = await getDashboardStats()
+      console.log('Dados recebidos do backend:', data)
       setStats(data)
+      setError(null)
     } catch (error) {
       console.error('Erro ao carregar estatísticas:', error)
+      setError(`Erro ao carregar dados: ${error instanceof Error ? error.message : 'Erro desconhecido'}`)
+      setStats(null)
     }
   }
 
@@ -68,6 +74,23 @@ export function Dashboard() {
         <h1>Dashboard</h1>
         <p className="text-gray-600">Visão geral do seu negócio</p>
       </div>
+
+      {/* Aviso de Erro */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          <p className="font-medium">⚠️ Erro ao carregar dados</p>
+          <p className="text-sm">{error}</p>
+          <p className="text-xs mt-2 text-red-600">
+            Verifique se o backend está rodando em http://localhost:3001
+          </p>
+          <button 
+            onClick={loadStats}
+            className="mt-3 bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm"
+          >
+            Tentar Novamente
+          </button>
+        </div>
+      )}
 
       {/* Cards de Estatísticas Principais */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

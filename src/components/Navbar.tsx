@@ -2,15 +2,15 @@ import { useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { Button } from './ui/button'
 import { Avatar, AvatarFallback } from './ui/avatar'
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger,
-  DropdownMenuSeparator
-} from './ui/dropdown-menu'
 import { Sheet, SheetContent, SheetTrigger } from './ui/sheet'
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './ui/alert-dialog'
+import { 
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from './ui/dialog'
 import { 
   Home, 
   Users, 
@@ -22,9 +22,11 @@ import {
   Wrench,
   Menu,
   User,
-  Shield
+  Shield,
+  ChevronDown
 } from 'lucide-react'
-import { toast } from 'sonner@2.0.3'
+import { toast } from 'sonner'
+
 
 interface NavbarProps {
   activeTab: string
@@ -44,6 +46,7 @@ const menuItems = [
 export function Navbar({ activeTab, onTabChange }: NavbarProps) {
   const { user, signOut } = useAuth()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
 
@@ -53,6 +56,7 @@ export function Navbar({ activeTab, onTabChange }: NavbarProps) {
       await signOut()
       toast.success('Sessão encerrada com sucesso')
       setLogoutDialogOpen(false)
+      setUserMenuOpen(false)
     } catch (error) {
       console.error('Erro ao fazer logout:', error)
       toast.error('Erro ao encerrar sessão')
@@ -88,91 +92,61 @@ export function Navbar({ activeTab, onTabChange }: NavbarProps) {
       {/* Desktop Sidebar */}
       <div className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0">
         <div className="flex flex-col flex-grow pt-5 bg-white border-r border-gray-200 overflow-y-auto">
+          {/* Header "Oficina Pro" */}
           <div className="flex items-center flex-shrink-0 px-4">
             <div className="flex items-center">
-              <div className="bg-blue-600 p-2 rounded-lg">
-                <Wrench className="h-6 w-6 text-white" />
-              </div>
-              <div className="ml-3">
-                <h2>Oficina Pro</h2>
-                <p className="text-sm text-gray-500">Sistema de Gestão</p>
-              </div>
+              <img 
+                src="/Pitstop.png" 
+                alt="PitStop" 
+                className="h-13 w-13 object-contain"
+              />
+              
             </div>
           </div>
           
           <div className="mt-8 flex-grow flex flex-col">
-            <div className="flex-1 px-4">
+            <div className="flex-1 px-4 pb-4">
               <NavItems />
-            </div>
-          </div>
+              
+              {/* User Profile Section - Desktop */}
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <div className="relative">
+                  <button
+                    onClick={() => setUserMenuOpen(!userMenuOpen)}
+                    className="w-full flex items-center justify-between p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <div className="flex items-center min-w-0">
+                      <Avatar className="h-8 w-8 mr-3 flex-shrink-0">
+                        <AvatarFallback>
+                          {user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || '?'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="text-left min-w-0">
+                        <div className="text-sm font-medium truncate">{user?.name || 'Usuário'}</div>
+                        <div className="text-xs text-gray-500 truncate">{user?.email}</div>
+                      </div>
+                    </div>
+                    <ChevronDown className={`h-4 w-4 flex-shrink-0 transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} />
+                  </button>
 
-          <div className="flex-shrink-0 px-4 py-4 border-t border-gray-200">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="w-full justify-start p-2 hover:bg-gray-100">
-                  <Avatar className="h-8 w-8 mr-3">
-                    <AvatarFallback>
-                      {user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="text-left flex-1">
-                    <div className="text-sm truncate">{user?.name || 'Usuário'}</div>
-                    <div className="text-xs text-gray-500 truncate">{user?.email}</div>
-                  </div>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-56 z-[100]" side="top" sideOffset={8}>
-                <DropdownMenuItem className="cursor-pointer">
-                  <User className="mr-2 h-4 w-4" />
-                  Perfil
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <AlertDialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen}>
-                  <AlertDialogTrigger asChild>
-                    <DropdownMenuItem 
-                      className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50"
-                      onSelect={(e) => {
-                        e.preventDefault()
-                        setLogoutDialogOpen(true)
-                      }}
-                    >
-                      <LogOut className="mr-2 h-4 w-4" />
-                      Sair da Conta
-                    </DropdownMenuItem>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent className="z-[200]">
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Confirmar Saída</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Tem certeza que deseja sair da sua conta? Você precisará fazer login novamente para acessar o sistema.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel disabled={isLoggingOut}>
-                        Cancelar
-                      </AlertDialogCancel>
-                      <AlertDialogAction 
-                        onClick={handleSignOut}
-                        disabled={isLoggingOut}
-                        className="bg-red-600 hover:bg-red-700"
+                  {/* User Menu Dropdown */}
+                  {userMenuOpen && (
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+                      <button
+                        onClick={() => {
+                          setUserMenuOpen(false)
+                          setLogoutDialogOpen(true)
+                        }}
+                        className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 text-sm flex items-center font-medium"
                       >
-                        {isLoggingOut ? (
-                          <div className="flex items-center gap-2">
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                            Saindo...
-                          </div>
-                        ) : (
-                          <>
-                            <LogOut className="mr-2 h-4 w-4" />
-                            Sair da Conta
-                          </>
-                        )}
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                        <LogOut className="mr-2 h-4 w-4" />
+                        Sair da Conta
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -181,7 +155,8 @@ export function Navbar({ activeTab, onTabChange }: NavbarProps) {
       <div className="md:hidden">
         <div className="bg-white shadow-sm border-b border-gray-200">
           <div className="flex items-center justify-between p-4">
-            <div className="flex items-center">
+            {/* Mobile Menu */}
+            <div className="flex items-center gap-3">
               <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
                 <SheetTrigger asChild>
                   <Button variant="ghost" size="icon">
@@ -200,131 +175,106 @@ export function Navbar({ activeTab, onTabChange }: NavbarProps) {
                   </div>
                   <NavItems mobile />
                   
-                  {/* Mobile Quick Logout */}
+                  {/* Mobile Logout Button */}
                   <div className="mt-6 pt-4 border-t border-gray-200">
-                    <AlertDialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen}>
-                      <AlertDialogTrigger asChild>
-                        <Button 
-                          variant="ghost" 
-                          className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 h-12"
-                          onClick={() => setMobileMenuOpen(false)}
-                        >
-                          <LogOut className="mr-2 h-4 w-4" />
-                          Trocar de Conta
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Confirmar Saída</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Tem certeza que deseja sair da sua conta? Você precisará fazer login novamente para acessar o sistema.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel disabled={isLoggingOut}>
-                            Cancelar
-                          </AlertDialogCancel>
-                          <AlertDialogAction 
-                            onClick={handleSignOut}
-                            disabled={isLoggingOut}
-                            className="bg-red-600 hover:bg-red-700"
-                          >
-                            {isLoggingOut ? (
-                              <div className="flex items-center gap-2">
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                                Saindo...
-                              </div>
-                            ) : (
-                              <>
-                                <LogOut className="mr-2 h-4 w-4" />
-                                Sair da Conta
-                              </>
-                            )}
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
-                </SheetContent>
-              </Sheet>
-              
-              <div className="ml-4">
-                <h1 className="text-lg">
-                  {menuItems.find(item => item.id === activeTab)?.label || 'Dashboard'}
-                </h1>
-              </div>
-            </div>
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="hover:bg-gray-100">
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback>
-                      {user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56 z-[100]" sideOffset={8}>
-                <div className="px-2 py-1.5 text-sm">
-                  <div className="font-medium truncate">{user?.name || 'Usuário'}</div>
-                  <div className="text-xs text-gray-500 truncate">{user?.email}</div>
-                </div>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="cursor-pointer">
-                  <User className="mr-2 h-4 w-4" />
-                  Perfil
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <AlertDialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen}>
-                  <AlertDialogTrigger asChild>
-                    <DropdownMenuItem 
-                      className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50"
-                      onSelect={(e) => {
-                        e.preventDefault()
+                    <Button 
+                      variant="ghost" 
+                      className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 h-12 font-medium"
+                      onClick={() => {
+                        setMobileMenuOpen(false)
                         setLogoutDialogOpen(true)
                       }}
                     >
                       <LogOut className="mr-2 h-4 w-4" />
                       Sair da Conta
-                    </DropdownMenuItem>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent className="z-[200]">
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Confirmar Saída</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Tem certeza que deseja sair da sua conta? Você precisará fazer login novamente para acessar o sistema.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel disabled={isLoggingOut}>
-                        Cancelar
-                      </AlertDialogCancel>
-                      <AlertDialogAction 
-                        onClick={handleSignOut}
-                        disabled={isLoggingOut}
-                        className="bg-red-600 hover:bg-red-700"
-                      >
-                        {isLoggingOut ? (
-                          <div className="flex items-center gap-2">
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                            Saindo...
-                          </div>
-                        ) : (
-                          <>
-                            <LogOut className="mr-2 h-4 w-4" />
-                            Sair da Conta
-                          </>
-                        )}
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                    </Button>
+                  </div>
+                </SheetContent>
+              </Sheet>
+              
+              <div className="min-w-0">
+                <h1 className="text-lg font-medium">
+                  {menuItems.find(item => item.id === activeTab)?.label || 'Dashboard'}
+                </h1>
+              </div>
+            </div>
+
+            {/* Mobile User Avatar Button */}
+            <div className="relative">
+              <button
+                onClick={() => setUserMenuOpen(!userMenuOpen)}
+                className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <Avatar className="h-8 w-8">
+                  <AvatarFallback>
+                    {user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || '?'}
+                  </AvatarFallback>
+                </Avatar>
+              </button>
+
+              {/* Mobile User Menu */}
+              {userMenuOpen && (
+                <div className="absolute top-full right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-48">
+                  <div className="px-4 py-2 border-b border-gray-200">
+                    <div className="font-medium truncate">{user?.name || 'Usuário'}</div>
+                    <div className="text-xs text-gray-500 truncate">{user?.email}</div>
+                  </div>
+                  
+                  <div className="border-t border-gray-200" />
+                  <button
+                    onClick={() => {
+                      setUserMenuOpen(false)
+                      setLogoutDialogOpen(true)
+                    }}
+                    className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 text-sm flex items-center font-medium"
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Sair da Conta
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Logout Confirmation Dialog */}
+      <Dialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen}>
+        <DialogContent className="w-96 max-w-[90vw]">
+          <DialogHeader>
+            <DialogTitle>Confirmar Saída</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja sair da sua conta? Você precisará fazer login novamente para acessar o sistema.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-3 pt-4">
+            <Button 
+              variant="outline" 
+              onClick={() => setLogoutDialogOpen(false)}
+              disabled={isLoggingOut}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              className="bg-red-600 hover:bg-red-700"
+              onClick={handleSignOut}
+              disabled={isLoggingOut}
+            >
+              {isLoggingOut ? (
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  Saindo...
+                </div>
+              ) : (
+                <>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sair da Conta
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

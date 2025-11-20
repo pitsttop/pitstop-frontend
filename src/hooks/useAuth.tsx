@@ -1,258 +1,119 @@
-import { useState, useEffect, createContext, useContext, ReactNode } from 'react'
-import { getSupabaseClient } from '../utils/supabase/client'
-import { projectId, publicAnonKey } from '../utils/supabase/info'
-import { isSupabaseConfigured } from '../utils/supabase/client'
+import { createContext, useContext, ReactNode, useState, useEffect } from 'react';
+import authApi from '../services/authApi'; 
+import api from '../services/api';
 
-interface User {
-  id: string
-  email: string
-  name?: string
-  userType: 'admin' | 'cliente'
-}
+type AuthContextType = {
+  accessToken: string | null;
+  user: any | null;
+  loading: boolean;
+  signIn: (email: string, password: string) => Promise<void>;
+  signOut: () => void;
+};
 
-interface AuthContextType {
-  user: User | null
-  loading: boolean
-  signIn: (email: string, password: string, userType: 'admin' | 'cliente') => Promise<{ error?: string }>
-  signUp: (email: string, password: string, name: string, userType?: 'admin' | 'cliente') => Promise<{ error?: string }>
-  signOut: () => Promise<void>
-  accessToken: string | null
-  hasAdmins: boolean | null
-  checkHasAdmins: () => Promise<void>
-  createAdmin: (email: string, password: string, name: string) => Promise<{ error?: string }>
-}
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined)
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const [user, setUser] = useState<any | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-// Get Supabase client once at module level
-const supabase = getSupabaseClient()
-
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [accessToken, setAccessToken] = useState<string | null>(null)
-  const [hasAdmins, setHasAdmins] = useState<boolean | null>(null)
-
+  // --- MUDANÇA 1: O "VIGILANTE" DO TOKEN ---
+  // Sempre que o accessToken mudar (login ou logout), configuramos o Axios.
   useEffect(() => {
-    let mounted = true
-
-    // Check for existing session
-    const checkSession = async () => {
-      try {
-        // Skip session check if Supabase is not configured
-        if (!isSupabaseConfigured()) {
-          if (mounted) {
-            setLoading(false)
-          }
-          return
-        }
-
-        const { data: { session }, error } = await supabase.auth.getSession()
-        if (mounted && session?.access_token && session?.user) {
-          setAccessToken(session.access_token)
-          setUser({
-            id: session.user.id,
-            email: session.user.email!,
-            name: session.user.user_metadata?.name,
-            userType: session.user.user_metadata?.userType || 'cliente'
-          })
-        }
-      } catch (error) {
-        console.error('Error checking session:', error)
-      } finally {
-        if (mounted) {
-          setLoading(false)
-        }
-      }
+    if (accessToken) {
+      // Cola o crachá na testa do mensageiro (Axios)
+      api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+      localStorage.setItem('accessToken', accessToken);
+    } else {
+      // Remove o crachá se não tiver token
+      delete api.defaults.headers.common['Authorization'];
+      // Não removemos do localStorage aqui para permitir o fluxo de refresh, 
+      // mas o signOut faz isso explicitamente.
     }
+  }, [accessToken]); 
 
-    checkSession()
-    checkHasAdmins()
-
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (!mounted) return
+  // --- MUDANÇA 2: CARGA INICIAL (F5) ---
+  useEffect(() => {
+    const loadStorageData = async () => {
+      const storedToken = localStorage.getItem('accessToken');
+      
+      if (storedToken) {
+        setAccessToken(storedToken);
+        // IMPORTANTE: Injetamos manualmente aqui também para garantir
+        // que a requisição fetchUser abaixo já vá com o token.
+        api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
         
-        if (session?.access_token && session?.user) {
-          setAccessToken(session.access_token)
-          setUser({
-            id: session.user.id,
-            email: session.user.email!,
-            name: session.user.user_metadata?.name,
-            userType: session.user.user_metadata?.userType || 'cliente'
-          })
-        } else {
-          setAccessToken(null)
-          setUser(null)
-        }
-        setLoading(false)
+        await fetchUser();
       }
-    )
+      setLoading(false);
+    };
 
-    return () => {
-      mounted = false
-      subscription.unsubscribe()
-    }
-  }, [])
+    loadStorageData();
+  }, []);
 
-  const signIn = async (email: string, password: string, userType: 'admin' | 'cliente') => {
+  const fetchUser = async () => {
+    // Tenta a rota padrão /me
     try {
-      if (!isSupabaseConfigured()) {
-        return { error: 'Supabase não está configurado' }
-      }
-
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      })
-
-      if (error) {
-        return { error: error.message }
-      }
-
-      return {}
-    } catch (error) {
-      console.error('Sign in error:', error)
-      return { error: 'Erro ao fazer login. Verifique sua configuração do Supabase.' }
+      // Ajuste para bater na sua API de Auth ou Backend, dependendo de onde está o /me
+      const res = await api.get('/auth/me').catch(() => api.get('/me')); 
+      setUser(res.data);
+      return;
+    } catch (e) {
+       // Silencioso no primeiro erro
     }
-  }
 
-  const checkHasAdmins = async () => {
-    try {
-      if (!isSupabaseConfigured()) {
-        setHasAdmins(false)
-        return
+    // Fallbacks se a rota principal falhar
+    const candidatePaths = ['/users/me', '/clientes/me'];
+    for (const path of candidatePaths) {
+      try {
+        const res = await api.get(path);
+        setUser(res.data);
+        return;
+      } catch (err) {
+        // continua tentando
       }
-
-      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-d3d28263/has-admins`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
-        },
-      })
-
-      const data = await response.json()
-      if (response.ok) {
-        setHasAdmins(data.hasAdmins)
-      } else {
-        setHasAdmins(false)
-      }
-    } catch (error) {
-      console.error('Error checking admins:', error)
-      setHasAdmins(false)
     }
-  }
+    console.warn('fetchUser: Não foi possível obter dados do usuário.');
+  };
 
-  const signUp = async (email: string, password: string, name: string, userType: 'admin' | 'cliente' = 'cliente') => {
+  const signIn = async (email: string, password: string) => {
+    setLoading(true);
     try {
-      if (!isSupabaseConfigured()) {
-        return { error: 'Supabase não está configurado' }
-      }
+      const response = await authApi.post('/auth/login', { email, password });
+      const { accessToken } = response.data;
 
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${publicAnonKey}`,
-      }
-
-      // If creating an admin and we have admins, include the access token
-      if (userType === 'admin' && hasAdmins && accessToken) {
-        headers['Authorization'] = `Bearer ${accessToken}`
-      }
-
-      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-d3d28263/signup`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ email, password, name, userType }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        return { error: data.error || 'Erro ao criar conta' }
-      }
-
-      // After successful signup, sign in the user
-      const signInResult = await signIn(email, password, userType)
-      return signInResult
-    } catch (error) {
-      console.error('Sign up error:', error)
-      return { error: 'Erro ao criar conta. Verifique sua configuração do Supabase.' }
-    }
-  }
-
-  const createAdmin = async (email: string, password: string, name: string) => {
-    try {
-      if (!isSupabaseConfigured()) {
-        return { error: 'Supabase não está configurado' }
-      }
-
-      if (!accessToken) {
-        return { error: 'Você precisa estar logado para criar administradores' }
-      }
-
-      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-d3d28263/create-admin`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ email, password, name }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        return { error: data.error || 'Erro ao criar administrador' }
-      }
-
-      return {}
-    } catch (error) {
-      console.error('Create admin error:', error)
-      return { error: 'Erro ao criar administrador. Verifique sua configuração do Supabase.' }
-    }
-  }
-
-  const signOut = async () => {
-    try {
-      // Clear user state immediately
-      setUser(null)
-      setAccessToken(null)
-      setLoading(true)
+      // Ao setar o estado aqui, o useEffect lá de cima (Mudança 1) dispara 
+      // e configura o Axios e o LocalStorage automaticamente.
+      setAccessToken(accessToken);
       
-      // Sign out from Supabase
-      await supabase.auth.signOut()
-      
-      // Clear any cached data or localStorage if needed
-      // Note: We don't clear Supabase config as user might want to use different account
-      
+      // Espera um pouquinho para o estado atualizar e busca o user
+      await fetchUser();
     } catch (error) {
-      console.error('Error during sign out:', error)
-      throw error
+      console.error('Erro no login:', error);
+      throw error;
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
-  const value = {
-    user,
-    loading,
-    signIn,
-    signUp,
-    signOut,
-    accessToken,
-    hasAdmins,
-    checkHasAdmins,
-    createAdmin
-  }
+  const signOut = () => {
+    localStorage.removeItem('accessToken');
+    setAccessToken(null);
+    setUser(null);
+    // O useEffect vai limpar o header do axios automaticamente
+  };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
-}
+  const value = { accessToken, user, loading, signIn, signOut };
 
-export function useAuth() {
-  const context = useContext(AuthContext)
+  if (loading) return null; 
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider')
+    throw new Error('useAuth deve ser usado dentro de um AuthProvider');
   }
-  return context
-}
+  return context;
+};

@@ -10,7 +10,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Badge } from './ui/badge'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './ui/alert-dialog'
 import { Plus, Edit, Trash2, Package, AlertTriangle, CheckCircle, DollarSign, Hash } from 'lucide-react'
-import { toast } from 'sonner@2.0.3'
+import { toast } from 'sonner'
+
+// MUDANÇA: Tipo de formulário para bater com a interface Peca (sem ID)
+type PecaFormData = Omit<Peca, 'id'>;
 
 export function Pecas() {
   const { getPecas, createPeca, updatePeca, deletePeca, loading } = useApi()
@@ -19,14 +22,12 @@ export function Pecas() {
   const [editingPeca, setEditingPeca] = useState<Peca | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   
-  const [formData, setFormData] = useState<Omit<Peca, 'id'>>({
-    nome: '',
-    codigo: '',
-    descricao: '',
-    preco: 0,
-    estoque: 0,
-    estoqueMinimo: 0,
-    fornecedor: ''
+  // MUDANÇA: 'formData' atualizado para bater com a interface (sem codigo, estoqueMinimo, fornecedor)
+  const [formData, setFormData] = useState<PecaFormData>({
+    name: '',
+    description: '',
+    price: 0,
+    stock: 0,
   })
 
   useEffect(() => {
@@ -43,15 +44,13 @@ export function Pecas() {
     }
   }
 
+  // MUDANÇA: 'resetForm' atualizado
   const resetForm = () => {
     setFormData({
-      nome: '',
-      codigo: '',
-      descricao: '',
-      preco: 0,
-      estoque: 0,
-      estoqueMinimo: 0,
-      fornecedor: ''
+      name: '',
+      description: '',
+      price: 0,
+      stock: 0,
     })
     setEditingPeca(null)
   }
@@ -59,12 +58,18 @@ export function Pecas() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
+    // Prepara dados para enviar (convertendo campos vazios para null)
+    const dataToSubmit: PecaFormData = {
+      ...formData,
+      description: formData.description || null,
+    };
+    
     try {
       if (editingPeca) {
-        await updatePeca(editingPeca.id!, formData)
+        await updatePeca(editingPeca.id!, dataToSubmit)
         toast.success('Peça atualizada com sucesso!')
       } else {
-        await createPeca(formData)
+        await createPeca(dataToSubmit)
         toast.success('Peça criada com sucesso!')
       }
       
@@ -77,16 +82,14 @@ export function Pecas() {
     }
   }
 
+  // MUDANÇA: 'handleEdit' atualizado
   const handleEdit = (peca: Peca) => {
     setEditingPeca(peca)
     setFormData({
-      nome: peca.nome,
-      codigo: peca.codigo,
-      descricao: peca.descricao,
-      preco: peca.preco,
-      estoque: peca.estoque,
-      estoqueMinimo: peca.estoqueMinimo,
-      fornecedor: peca.fornecedor
+      name: peca.name,
+      description: peca.description || '', // Protege contra null
+      price: peca.price,
+      stock: peca.stock,
     })
     setDialogOpen(true)
   }
@@ -102,11 +105,10 @@ export function Pecas() {
     }
   }
 
+  // MUDANÇA: 'filteredPecas' atualizado (sem codigo, fornecedor)
   const filteredPecas = pecas.filter(peca =>
-    peca.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    peca.codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    peca.descricao.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    peca.fornecedor.toLowerCase().includes(searchTerm.toLowerCase())
+    peca.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (peca.description || '').toLowerCase().includes(searchTerm.toLowerCase()) // Protege contra null
   )
 
   const formatCurrency = (value: number) => {
@@ -116,18 +118,17 @@ export function Pecas() {
     }).format(value)
   }
 
+  // MUDANÇA: 'getEstoqueStatus' simplificado (sem estoqueMinimo)
   const getEstoqueStatus = (peca: Peca) => {
-    if (peca.estoque === 0) {
+    if (peca.stock === 0) {
       return { label: 'Sem Estoque', color: 'bg-red-100 text-red-800 border-red-200', icon: AlertTriangle }
-    } else if (peca.estoque <= peca.estoqueMinimo) {
-      return { label: 'Estoque Baixo', color: 'bg-yellow-100 text-yellow-800 border-yellow-200', icon: AlertTriangle }
     } else {
-      return { label: 'Estoque OK', color: 'bg-green-100 text-green-800 border-green-200', icon: CheckCircle }
+      return { label: 'Em Estoque', color: 'bg-green-100 text-green-800 border-green-200', icon: CheckCircle }
     }
   }
-
-  const pecasEstoqueBaixo = pecas.filter(peca => peca.estoque <= peca.estoqueMinimo && peca.estoque > 0).length
-  const pecasSemEstoque = pecas.filter(peca => peca.estoque === 0).length
+  
+  // MUDANÇA: Lógica de 'estoqueBaixo' removida
+  const pecasSemEstoque = pecas.filter(peca => peca.stock === 0).length
 
   return (
     <div className="p-6 space-y-6">
@@ -151,93 +152,66 @@ export function Pecas() {
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* MUDANÇA: usa 'name' */}
               <div>
-                <Label htmlFor="nome">Nome da Peça</Label>
+                <Label htmlFor="name">Nome da Peça</Label>
                 <Input
-                  id="nome"
-                  value={formData.nome}
-                  onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
                   placeholder="Nome da peça"
                 />
               </div>
               
-              <div>
-                <Label htmlFor="codigo">Código</Label>
-                <Input
-                  id="codigo"
-                  value={formData.codigo}
-                  onChange={(e) => setFormData({ ...formData, codigo: e.target.value })}
-                  required
-                  placeholder="Código da peça"
-                />
-              </div>
+              {/* MUDANÇA: Campo 'codigo' REMOVIDO */}
               
+              {/* MUDANÇA: usa 'description' */}
               <div>
-                <Label htmlFor="descricao">Descrição</Label>
+                <Label htmlFor="description">Descrição</Label>
                 <Textarea
-                  id="descricao"
-                  value={formData.descricao}
-                  onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
+                  id="description"
+                  value={formData.description || ''}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="Descrição detalhada da peça"
                   rows={3}
                 />
               </div>
               
               <div className="grid grid-cols-2 gap-4">
+                {/* MUDANÇA: usa 'price' */}
                 <div>
-                  <Label htmlFor="preco">Preço (R$)</Label>
+                  <Label htmlFor="price">Preço (R$)</Label>
                   <Input
-                    id="preco"
+                    id="price"
                     type="number"
                     step="0.01"
-                    value={formData.preco}
-                    onChange={(e) => setFormData({ ...formData, preco: parseFloat(e.target.value) || 0 })}
+                    value={formData.price}
+                    onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
                     required
                     min="0"
                     placeholder="0.00"
                   />
                 </div>
                 
+                {/* MUDANÇA: Campo 'fornecedor' REMOVIDO */}
+                
+                {/* MUDANÇA: usa 'stock' */}
                 <div>
-                  <Label htmlFor="fornecedor">Fornecedor</Label>
+                  <Label htmlFor="stock">Estoque Atual</Label>
                   <Input
-                    id="fornecedor"
-                    value={formData.fornecedor}
-                    onChange={(e) => setFormData({ ...formData, fornecedor: e.target.value })}
+                    id="stock"
+                    type="number"
+                    value={formData.stock}
+                    onChange={(e) => setFormData({ ...formData, stock: parseInt(e.target.value) || 0 })}
                     required
-                    placeholder="Nome do fornecedor"
+                    min="0"
+                    placeholder="0"
                   />
                 </div>
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="estoque">Estoque Atual</Label>
-                  <Input
-                    id="estoque"
-                    type="number"
-                    value={formData.estoque}
-                    onChange={(e) => setFormData({ ...formData, estoque: parseInt(e.target.value) || 0 })}
-                    required
-                    min="0"
-                    placeholder="0"
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="estoqueMinimo">Estoque Mínimo</Label>
-                  <Input
-                    id="estoqueMinimo"
-                    type="number"
-                    value={formData.estoqueMinimo}
-                    onChange={(e) => setFormData({ ...formData, estoqueMinimo: parseInt(e.target.value) || 0 })}
-                    required
-                    min="0"
-                    placeholder="0"
-                  />
-                </div>
-              </div>
+              {/* MUDANÇA: Campo 'estoqueMinimo' REMOVIDO */}
               
               <div className="flex gap-3 pt-4">
                 <Button type="submit" disabled={loading} className="flex-1">
@@ -257,40 +231,22 @@ export function Pecas() {
         </Dialog>
       </div>
 
-      {/* Alertas de Estoque */}
-      {(pecasSemEstoque > 0 || pecasEstoqueBaixo > 0) && (
+      {/* MUDANÇA: Alerta de 'estoque baixo' REMOVIDO */}
+      {pecasSemEstoque > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {pecasSemEstoque > 0 && (
-            <Card className="border-red-200 bg-red-50">
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-red-600" />
-                  <div>
-                    <p className="text-red-800">
-                      <strong>{pecasSemEstoque}</strong> peça(s) sem estoque
-                    </p>
-                    <p className="text-sm text-red-600">Necessário reposição urgente</p>
-                  </div>
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-red-600" />
+                <div>
+                  <p className="text-red-800">
+                    <strong>{pecasSemEstoque}</strong> peça(s) sem estoque
+                  </p>
+                  <p className="text-sm text-red-600">Necessário reposição urgente</p>
                 </div>
-              </CardContent>
-            </Card>
-          )}
-          
-          {pecasEstoqueBaixo > 0 && (
-            <Card className="border-yellow-200 bg-yellow-50">
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-yellow-600" />
-                  <div>
-                    <p className="text-yellow-800">
-                      <strong>{pecasEstoqueBaixo}</strong> peça(s) com estoque baixo
-                    </p>
-                    <p className="text-sm text-yellow-600">Considere fazer pedido de reposição</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
 
@@ -299,8 +255,9 @@ export function Pecas() {
         <CardContent className="pt-6">
           <div className="flex items-center space-x-2">
             <div className="flex-1">
+              {/* MUDANÇA: Placeholder atualizado */}
               <Input
-                placeholder="Buscar por nome, código, descrição ou fornecedor..."
+                placeholder="Buscar por nome ou descrição..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -331,7 +288,7 @@ export function Pecas() {
                     <TableHead>Preço</TableHead>
                     <TableHead>Estoque</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Fornecedor</TableHead>
+                    {/* MUDANÇA: Coluna 'Fornecedor' REMOVIDA */}
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -348,14 +305,12 @@ export function Pecas() {
                               <Package className="h-4 w-4 text-blue-600" />
                             </div>
                             <div>
-                              <div>{peca.nome}</div>
-                              <div className="text-sm text-gray-500 flex items-center gap-1">
-                                <Hash className="h-3 w-3" />
-                                {peca.codigo}
-                              </div>
-                              {peca.descricao && (
+                              {/* MUDANÇA: usa 'name', 'description' */}
+                              <div>{peca.name}</div>
+                              {/* MUDANÇA: Coluna 'codigo' REMOVIDA */}
+                              {peca.description && (
                                 <div className="text-xs text-gray-400 truncate max-w-xs">
-                                  {peca.descricao}
+                                  {peca.description}
                                 </div>
                               )}
                             </div>
@@ -364,16 +319,13 @@ export function Pecas() {
                         <TableCell>
                           <div className="flex items-center gap-1">
                             <DollarSign className="h-3 w-3" />
-                            {formatCurrency(peca.preco)}
+                            {/* MUDANÇA: usa 'price' */}
+                            {formatCurrency(peca.price)}
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="space-y-1">
-                            <div>Atual: <strong>{peca.estoque}</strong></div>
-                            <div className="text-sm text-gray-500">
-                              Mínimo: {peca.estoqueMinimo}
-                            </div>
-                          </div>
+                          {/* MUDANÇA: usa 'stock', remove 'estoqueMinimo' */}
+                          <div>Atual: <strong>{peca.stock}</strong></div>
                         </TableCell>
                         <TableCell>
                           <Badge className={`${status.color} flex items-center gap-1 w-fit`}>
@@ -381,9 +333,7 @@ export function Pecas() {
                             {status.label}
                           </Badge>
                         </TableCell>
-                        <TableCell>
-                          {peca.fornecedor}
-                        </TableCell>
+                        {/* MUDANÇA: Coluna 'fornecedor' REMOVIDA */}
                         <TableCell className="text-right">
                           <div className="flex gap-2 justify-end">
                             <Button
@@ -403,7 +353,8 @@ export function Pecas() {
                                 <AlertDialogHeader>
                                   <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    Tem certeza que deseja excluir a peça "{peca.nome}"? 
+                                    {/* MUDANÇA: usa 'name' */}
+                                    Tem certeza que deseja excluir a peça "{peca.name}"? 
                                     Esta ação não pode ser desfeita.
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>

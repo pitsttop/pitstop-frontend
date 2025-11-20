@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { useApi, Cliente } from '../hooks/useApi'
+// A interface 'Cliente' importada já é a NOVA (com name, phone, etc.)
+import { useApi, Cliente } from '../hooks/useApi' 
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
@@ -8,8 +9,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table'
 import { Badge } from './ui/badge'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './ui/alert-dialog'
-import { Plus, Edit, Trash2, User, Mail, Phone, MapPin, CreditCard } from 'lucide-react'
-import { toast } from 'sonner@2.0.3'
+import { Plus, Edit, Trash2, User, Mail, Phone, MapPin, CreditCard, AlertCircle } from 'lucide-react'
+import { toast } from 'sonner'
+import { isValidPhone, formatPhoneInput, getValidationErrorMessage } from '../utils/validation'
+
+// Tipo para o formulário. Omitimos campos que não vêm do formulário.
+type ClienteFormData = Omit<Cliente, 'id' | 'createdAt'>;
 
 export function Clientes() {
   const { getClientes, createCliente, updateCliente, deleteCliente, loading } = useApi()
@@ -17,13 +22,15 @@ export function Clientes() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const [phoneError, setPhoneError] = useState<string | null>(null)
   
-  const [formData, setFormData] = useState<Omit<Cliente, 'id'>>({
-    nome: '',
-    email: '',
-    telefone: '',
-    endereco: '',
-    cpf: ''
+  // MUDANÇA: O estado do formulário agora usa os campos corretos (name, phone, etc.)
+  // e removemos o 'cpf'
+  const [formData, setFormData] = useState<ClienteFormData>({
+    name: '',
+    email: '', // O formulário usará string, mesmo o tipo podendo ser null
+    phone: '',
+    address: '', // O formulário usará string, mesmo o tipo podendo ser null
   })
 
   useEffect(() => {
@@ -40,26 +47,59 @@ export function Clientes() {
     }
   }
 
+  // MUDANÇA: resetForm atualizado para os campos novos
   const resetForm = () => {
     setFormData({
-      nome: '',
+      name: '',
       email: '',
-      telefone: '',
-      endereco: '',
-      cpf: ''
+      phone: '',
+      address: ''
     })
     setEditingCliente(null)
-  }
+    }
+
+    const handleDialogClose = () => {
+      setDialogOpen(false)
+      resetForm()
+    }
+
+    const handleOpenDialog = () => {
+      setPhoneError(null)
+      setEditingCliente(null)
+      setFormData({
+        name: '',
+        email: '',
+        phone: '',
+        address: ''
+      })
+      setDialogOpen(true)
+    }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
+     // Valida o telefone
+     if (!isValidPhone(formData.phone)) {
+       setPhoneError(getValidationErrorMessage('phone', 'phone'))
+       toast.error(getValidationErrorMessage('phone', 'phone'))
+       return
+     }
+     setPhoneError(null)
+
+    // Prepara os dados para enviar, tratando campos nulos
+    const dataToSubmit: ClienteFormData = {
+      name: formData.name,
+      phone: formData.phone,
+      email: formData.email || null, // Envia null se o email estiver vazio
+      address: formData.address || null, // Envia null se o endereço estiver vazio
+    };
+    
     try {
       if (editingCliente) {
-        await updateCliente(editingCliente.id!, formData)
+        await updateCliente(editingCliente.id!, dataToSubmit) // MUDANÇA: usa dataToSubmit
         toast.success('Cliente atualizado com sucesso!')
       } else {
-        await createCliente(formData)
+        await createCliente(dataToSubmit) // MUDANÇA: usa dataToSubmit
         toast.success('Cliente criado com sucesso!')
       }
       
@@ -72,15 +112,16 @@ export function Clientes() {
     }
   }
 
+  // MUDANÇA: handleEdit atualizado para os campos novos
   const handleEdit = (cliente: Cliente) => {
     setEditingCliente(cliente)
     setFormData({
-      nome: cliente.nome,
-      email: cliente.email,
-      telefone: cliente.telefone,
-      endereco: cliente.endereco,
-      cpf: cliente.cpf
+      name: cliente.name,
+      email: cliente.email || '', // Garante que o valor no form não seja null
+      phone: cliente.phone,
+      address: cliente.address || '' // Garante que o valor no form não seja null
     })
+     setPhoneError(null)
     setDialogOpen(true)
   }
 
@@ -95,24 +136,26 @@ export function Clientes() {
     }
   }
 
+  // MUDANÇA: filteredClientes atualizado para os campos novos (name, phone)
+  // e removemos a busca por 'cpf'
   const filteredClientes = clientes.filter(cliente =>
-    cliente.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    cliente.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    cliente.telefone.includes(searchTerm) ||
-    cliente.cpf.includes(searchTerm)
+    cliente.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (cliente.email || '').toLowerCase().includes(searchTerm.toLowerCase()) || // Proteção contra null
+    cliente.phone.includes(searchTerm)
   )
 
-  const formatCPF = (cpf: string) => {
-    return cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
-  }
+  // MUDANÇA: Removemos a função formatCPF que não é mais usada
 
   const formatPhone = (phone: string) => {
+    // Adiciona uma verificação caso 'phone' seja nulo ou indefinido (embora seja string)
+    if (!phone) return 'N/A';
     return phone.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3')
   }
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      {/* ... (Cabeçalho "Gestão de Clientes" e botão "Novo Cliente" não mudam) ... */}
+       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1>Gestão de Clientes</h1>
           <p className="text-gray-600">Gerencie informações dos seus clientes</p>
@@ -120,7 +163,7 @@ export function Clientes() {
         
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={resetForm}>
+              <Button onClick={handleOpenDialog}>
               <Plus className="mr-2 h-4 w-4" />
               Novo Cliente
             </Button>
@@ -132,58 +175,65 @@ export function Clientes() {
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* MUDANÇA: Formulário atualizado para 'name' */}
               <div>
-                <Label htmlFor="nome">Nome Completo</Label>
+                <Label htmlFor="name">Nome Completo</Label> 
                 <Input
-                  id="nome"
-                  value={formData.nome}
-                  onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
                   placeholder="Digite o nome completo"
                 />
               </div>
               
+              {/* MUDANÇA: value do email protegido contra null */}
               <div>
                 <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
                   type="email"
-                  value={formData.email}
+                  value={formData.email || ''} 
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  required
                   placeholder="email@exemplo.com"
                 />
               </div>
               
+              {/* MUDANÇA: Formulário atualizado para 'phone' */}
               <div>
-                <Label htmlFor="telefone">Telefone</Label>
+                <Label htmlFor="phone">Telefone</Label>
                 <Input
-                  id="telefone"
-                  value={formData.telefone}
-                  onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
+                  id="phone"
+                  value={formData.phone}
+                   onChange={(e) => setFormData({ ...formData, phone: formatPhoneInput(e.target.value) })}
+                   onBlur={() => {
+                     if (formData.phone && !isValidPhone(formData.phone)) {
+                       setPhoneError(getValidationErrorMessage('phone', 'phone'))
+                     } else {
+                       setPhoneError(null)
+                     }
+                   }}
                   required
                   placeholder="(11) 99999-9999"
+                   className={phoneError ? 'border-red-500' : ''}
                 />
+                 {phoneError && (
+                   <div className="flex items-center gap-2 text-red-600 text-sm mt-1">
+                     <AlertCircle className="w-4 h-4" />
+                     <span>{phoneError}</span>
+                   </div>
+                 )}
               </div>
               
-              <div>
-                <Label htmlFor="cpf">CPF</Label>
-                <Input
-                  id="cpf"
-                  value={formData.cpf}
-                  onChange={(e) => setFormData({ ...formData, cpf: e.target.value })}
-                  required
-                  placeholder="000.000.000-00"
-                />
-              </div>
+              {/* MUDANÇA: Div do CPF removida */}
               
+              {/* MUDANÇA: Formulário atualizado para 'address' */}
               <div>
-                <Label htmlFor="endereco">Endereço</Label>
+                <Label htmlFor="address">Endereço</Label>
                 <Input
-                  id="endereco"
-                  value={formData.endereco}
-                  onChange={(e) => setFormData({ ...formData, endereco: e.target.value })}
-                  required
+                  id="address"
+                  value={formData.address || ''}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                   placeholder="Endereço completo"
                 />
               </div>
@@ -195,7 +245,7 @@ export function Clientes() {
                 <Button 
                   type="button" 
                   variant="outline" 
-                  onClick={() => setDialogOpen(false)}
+                   onClick={handleDialogClose}
                   className="flex-1"
                 >
                   Cancelar
@@ -211,8 +261,9 @@ export function Clientes() {
         <CardContent className="pt-6">
           <div className="flex items-center space-x-2">
             <div className="flex-1">
+              {/* MUDANÇA: Placeholder da busca atualizado (sem CPF) */}
               <Input
-                placeholder="Buscar por nome, email, telefone ou CPF..."
+                placeholder="Buscar por nome, email ou telefone..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -241,7 +292,7 @@ export function Clientes() {
                   <TableRow>
                     <TableHead>Nome</TableHead>
                     <TableHead>Contato</TableHead>
-                    <TableHead>CPF</TableHead>
+                    {/* MUDANÇA: Coluna CPF removida */}
                     <TableHead>Endereço</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
@@ -255,7 +306,8 @@ export function Clientes() {
                             <User className="h-4 w-4 text-blue-600" />
                           </div>
                           <div>
-                            <div>{cliente.nome}</div>
+                            {/* MUDANÇA: cliente.nome -> cliente.name */}
+                            <div>{cliente.name}</div>
                             <div className="text-sm text-gray-500">
                               Cliente desde {new Date(cliente.createdAt || '').toLocaleDateString('pt-BR')}
                             </div>
@@ -266,25 +318,25 @@ export function Clientes() {
                         <div className="space-y-1">
                           <div className="flex items-center gap-1 text-sm">
                             <Mail className="h-3 w-3" />
-                            {cliente.email}
+                            {/* MUDANÇA: Proteção contra email nulo */}
+                            {cliente.email || 'N/A'}
                           </div>
                           <div className="flex items-center gap-1 text-sm">
                             <Phone className="h-3 w-3" />
-                            {formatPhone(cliente.telefone)}
+                            {/* MUDANÇA: cliente.telefone -> cliente.phone */}
+                            {formatPhone(cliente.phone)}
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="font-mono">
-                          <CreditCard className="h-3 w-3 mr-1" />
-                          {formatCPF(cliente.cpf)}
-                        </Badge>
-                      </TableCell>
+                      
+                      {/* MUDANÇA: Célula da tabela (TableCell) do CPF foi REMOVIDA */}
+                      
                       <TableCell>
                         <div className="flex items-center gap-1 text-sm">
                           <MapPin className="h-3 w-3" />
-                          <span className="truncate max-w-xs" title={cliente.endereco}>
-                            {cliente.endereco}
+                          {/* MUDANÇA: cliente.endereco -> cliente.address */}
+                          <span className="truncate max-w-xs" title={cliente.address || ''}>
+                            {cliente.address || 'N/A'}
                           </span>
                         </div>
                       </TableCell>
@@ -307,7 +359,8 @@ export function Clientes() {
                               <AlertDialogHeader>
                                 <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  Tem certeza que deseja excluir o cliente "{cliente.nome}"? 
+                                  {/* MUDANÇA: cliente.nome -> cliente.name */}
+                                  Tem certeza que deseja excluir o cliente "{cliente.name}"? 
                                   Esta ação não pode ser desfeita.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>

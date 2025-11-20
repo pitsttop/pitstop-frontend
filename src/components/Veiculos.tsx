@@ -9,8 +9,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 import { Badge } from './ui/badge'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './ui/alert-dialog'
-import { Plus, Edit, Trash2, Car, User, Calendar, Gauge } from 'lucide-react'
-import { toast } from 'sonner@2.0.3'
+// MUDANÇA: 'Gauge' removido pois 'km' não existe mais
+import { Plus, Edit, Trash2, Car, User, Calendar, AlertCircle } from 'lucide-react'
+import { toast } from 'sonner'
+import { isValidPlate, formatPlateInput, getValidationErrorMessage } from '../utils/validation'
+
+// MUDANÇA: Tipo de formulário para bater com a interface Veiculo (sem campos de Supabase)
+type VeiculoFormData = Omit<Veiculo, 'id' | 'createdAt'>;
 
 export function Veiculos() {
   const { getVeiculos, createVeiculo, updateVeiculo, deleteVeiculo, getClientes, loading } = useApi()
@@ -19,16 +24,16 @@ export function Veiculos() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingVeiculo, setEditingVeiculo] = useState<Veiculo | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const [plateError, setPlateError] = useState<string | null>(null)
   
-  const [formData, setFormData] = useState<Omit<Veiculo, 'id'>>({
-    clienteId: '',
-    marca: '',
-    modelo: '',
-    ano: new Date().getFullYear(),
-    placa: '',
-    cor: '',
-    combustivel: '',
-    km: 0
+  // MUDANÇA: 'formData' atualizado para bater com a interface (sem combustivel, km)
+  const [formData, setFormData] = useState<VeiculoFormData>({
+    ownerId: '', // MUDANÇA: de clienteId para ownerId
+    brand: '',   // MUDANÇA: de marca para brand
+    model: '',   // MUDANÇA: de modelo para model
+    year: new Date().getFullYear(), // MUDANÇA: de ano para year
+    plate: '',   // MUDANÇA: de placa para plate
+    color: '',   // MUDANÇA: de cor para color
   })
 
   useEffect(() => {
@@ -49,16 +54,15 @@ export function Veiculos() {
     }
   }
 
+  // MUDANÇA: 'resetForm' atualizado
   const resetForm = () => {
     setFormData({
-      clienteId: '',
-      marca: '',
-      modelo: '',
-      ano: new Date().getFullYear(),
-      placa: '',
-      cor: '',
-      combustivel: '',
-      km: 0
+      ownerId: '',
+      brand: '',
+      model: '',
+      year: new Date().getFullYear(),
+      plate: '',
+      color: '',
     })
     setEditingVeiculo(null)
   }
@@ -66,17 +70,33 @@ export function Veiculos() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!formData.clienteId) {
+    // MUDANÇA: Verificação de ownerId
+    if (!formData.ownerId) {
       toast.error('Selecione um cliente')
       return
     }
+
+    // NOVA VALIDAÇÃO: Verificar formato de placa
+    if (!isValidPlate(formData.plate)) {
+      setPlateError(getValidationErrorMessage('plate', 'plate'))
+      toast.error(getValidationErrorMessage('plate', 'plate'))
+      return
+    }
+
+    setPlateError(null)
+    
+    // Prepara dados para enviar (convertendo campos vazios para null)
+    const dataToSubmit: VeiculoFormData = {
+      ...formData,
+      color: formData.color || null,
+    };
     
     try {
       if (editingVeiculo) {
-        await updateVeiculo(editingVeiculo.id!, formData)
+        await updateVeiculo(editingVeiculo.id!, dataToSubmit)
         toast.success('Veículo atualizado com sucesso!')
       } else {
-        await createVeiculo(formData)
+        await createVeiculo(dataToSubmit)
         toast.success('Veículo criado com sucesso!')
       }
       
@@ -89,17 +109,16 @@ export function Veiculos() {
     }
   }
 
+  // MUDANÇA: 'handleEdit' atualizado
   const handleEdit = (veiculo: Veiculo) => {
     setEditingVeiculo(veiculo)
     setFormData({
-      clienteId: veiculo.clienteId,
-      marca: veiculo.marca,
-      modelo: veiculo.modelo,
-      ano: veiculo.ano,
-      placa: veiculo.placa,
-      cor: veiculo.cor,
-      combustivel: veiculo.combustivel,
-      km: veiculo.km
+      ownerId: veiculo.ownerId,
+      brand: veiculo.brand,
+      model: veiculo.model,
+      year: veiculo.year,
+      plate: veiculo.plate,
+      color: veiculo.color || '', // Protege contra null
     })
     setDialogOpen(true)
   }
@@ -115,43 +134,32 @@ export function Veiculos() {
     }
   }
 
+  // MUDANÇA: 'getClienteNome' usa 'name' do cliente
   const getClienteNome = (clienteId: string) => {
     const cliente = clientes.find(c => c.id === clienteId)
-    return cliente?.nome || 'Cliente não encontrado'
+    return cliente?.name || 'Cliente não encontrado' // Usa 'name'
   }
 
+  // MUDANÇA: 'filteredVeiculos' atualizado
   const filteredVeiculos = veiculos.filter(veiculo => {
-    const clienteNome = getClienteNome(veiculo.clienteId)
+    const clienteNome = getClienteNome(veiculo.ownerId) // Usa 'ownerId'
     return (
-      veiculo.marca.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      veiculo.modelo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      veiculo.placa.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      veiculo.brand.toLowerCase().includes(searchTerm.toLowerCase()) || // Usa 'brand'
+      veiculo.model.toLowerCase().includes(searchTerm.toLowerCase()) || // Usa 'model'
+      veiculo.plate.toLowerCase().includes(searchTerm.toLowerCase()) || // Usa 'plate'
       clienteNome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      veiculo.ano.toString().includes(searchTerm)
+      veiculo.year.toString().includes(searchTerm) // Usa 'year'
     )
   })
 
   const formatPlaca = (placa: string) => {
-    // Formato brasileiro: ABC-1234 ou ABC1D23
     if (placa.length === 7) {
       return placa.replace(/([A-Z]{3})([0-9]{4})/, '$1-$2')
     }
     return placa
   }
 
-  const formatKm = (km: number) => {
-    return new Intl.NumberFormat('pt-BR').format(km) + ' km'
-  }
-
-  const combustivelOptions = [
-    { value: 'gasolina', label: 'Gasolina' },
-    { value: 'etanol', label: 'Etanol' },
-    { value: 'flex', label: 'Flex' },
-    { value: 'diesel', label: 'Diesel' },
-    { value: 'gnv', label: 'GNV' },
-    { value: 'eletrico', label: 'Elétrico' },
-    { value: 'hibrido', label: 'Híbrido' }
-  ]
+  // MUDANÇA: Funções 'formatKm' e 'combustivelOptions' REMOVIDAS
 
   const currentYear = new Date().getFullYear()
   const years = Array.from({ length: 50 }, (_, i) => currentYear - i)
@@ -164,9 +172,18 @@ export function Veiculos() {
           <p className="text-gray-600">Gerencie a frota de veículos dos seus clientes</p>
         </div>
         
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog open={dialogOpen} onOpenChange={(open) => {
+          setDialogOpen(open)
+          if (!open) {
+            setPlateError(null)
+            resetForm()
+          }
+        }}>
           <DialogTrigger asChild>
-            <Button onClick={resetForm}>
+            <Button onClick={() => {
+              resetForm()
+              setPlateError(null)
+            }}>
               <Plus className="mr-2 h-4 w-4" />
               Novo Veículo
             </Button>
@@ -178,16 +195,17 @@ export function Veiculos() {
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* MUDANÇA: usa 'ownerId' e 'cliente.name' */}
               <div>
                 <Label htmlFor="cliente">Cliente</Label>
-                <Select value={formData.clienteId} onValueChange={(value) => setFormData({ ...formData, clienteId: value })}>
+                <Select value={formData.ownerId} onValueChange={(value) => setFormData({ ...formData, ownerId: value })}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione um cliente" />
                   </SelectTrigger>
                   <SelectContent>
                     {clientes.map((cliente) => (
                       <SelectItem key={cliente.id} value={cliente.id!}>
-                        {cliente.nome}
+                        {cliente.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -195,23 +213,25 @@ export function Veiculos() {
               </div>
               
               <div className="grid grid-cols-2 gap-4">
+                {/* MUDANÇA: usa 'brand' */}
                 <div>
-                  <Label htmlFor="marca">Marca</Label>
+                  <Label htmlFor="brand">Marca</Label>
                   <Input
-                    id="marca"
-                    value={formData.marca}
-                    onChange={(e) => setFormData({ ...formData, marca: e.target.value })}
+                    id="brand"
+                    value={formData.brand}
+                    onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
                     required
                     placeholder="Ex: Toyota"
                   />
                 </div>
                 
+                {/* MUDANÇA: usa 'model' */}
                 <div>
-                  <Label htmlFor="modelo">Modelo</Label>
+                  <Label htmlFor="model">Modelo</Label>
                   <Input
-                    id="modelo"
-                    value={formData.modelo}
-                    onChange={(e) => setFormData({ ...formData, modelo: e.target.value })}
+                    id="model"
+                    value={formData.model}
+                    onChange={(e) => setFormData({ ...formData, model: e.target.value })}
                     required
                     placeholder="Ex: Corolla"
                   />
@@ -219,9 +239,10 @@ export function Veiculos() {
               </div>
               
               <div className="grid grid-cols-2 gap-4">
+                {/* MUDANÇA: usa 'year' */}
                 <div>
-                  <Label htmlFor="ano">Ano</Label>
-                  <Select value={formData.ano.toString()} onValueChange={(value) => setFormData({ ...formData, ano: parseInt(value) })}>
+                  <Label htmlFor="year">Ano</Label>
+                  <Select value={formData.year.toString()} onValueChange={(value) => setFormData({ ...formData, year: parseInt(value) })}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -235,60 +256,50 @@ export function Veiculos() {
                   </Select>
                 </div>
                 
+                {/* MUDANÇA: usa 'plate' */}
                 <div>
-                  <Label htmlFor="placa">Placa</Label>
+                  <Label htmlFor="plate">Placa</Label>
                   <Input
-                    id="placa"
-                    value={formData.placa}
-                    onChange={(e) => setFormData({ ...formData, placa: e.target.value.toUpperCase() })}
+                    id="plate"
+                    value={formData.plate}
+                    onChange={(e) => setFormData({ ...formData, plate: formatPlateInput(e.target.value) })}
+                    onBlur={() => {
+                      if (formData.plate && !isValidPlate(formData.plate)) {
+                        setPlateError(getValidationErrorMessage('plate', 'plate'))
+                      } else {
+                        setPlateError(null)
+                      }
+                    }}
                     required
-                    placeholder="ABC-1234"
+                    placeholder="ABC-1234 ou ABC1D23"
                     maxLength={8}
+                    className={plateError ? 'border-red-500' : ''}
                   />
+                  {plateError && (
+                    <div className="flex items-center gap-2 text-red-600 text-sm mt-1">
+                      <AlertCircle className="w-4 h-4" />
+                      <span>{plateError}</span>
+                    </div>
+                  )}
                 </div>
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1"> {/* MUDANÇA: Apenas 'cor' agora */}
+                {/* MUDANÇA: usa 'color' */}
                 <div>
-                  <Label htmlFor="cor">Cor</Label>
+                  <Label htmlFor="color">Cor</Label>
                   <Input
-                    id="cor"
-                    value={formData.cor}
-                    onChange={(e) => setFormData({ ...formData, cor: e.target.value })}
-                    required
+                    id="color"
+                    value={formData.color || ''}
+                    onChange={(e) => setFormData({ ...formData, color: e.target.value })}
                     placeholder="Ex: Branco"
                   />
                 </div>
                 
-                <div>
-                  <Label htmlFor="combustivel">Combustível</Label>
-                  <Select value={formData.combustivel} onValueChange={(value) => setFormData({ ...formData, combustivel: value })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {combustivelOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {/* MUDANÇA: Campo 'combustivel' REMOVIDO */}
               </div>
               
-              <div>
-                <Label htmlFor="km">Quilometragem</Label>
-                <Input
-                  id="km"
-                  type="number"
-                  value={formData.km}
-                  onChange={(e) => setFormData({ ...formData, km: parseInt(e.target.value) || 0 })}
-                  required
-                  placeholder="0"
-                  min="0"
-                />
-              </div>
+              {/* MUDANÇA: Campo 'km' REMOVIDO */}
               
               <div className="flex gap-3 pt-4">
                 <Button type="submit" disabled={loading} className="flex-1">
@@ -344,7 +355,7 @@ export function Veiculos() {
                     <TableHead>Veículo</TableHead>
                     <TableHead>Cliente</TableHead>
                     <TableHead>Placa</TableHead>
-                    <TableHead>Detalhes</TableHead>
+                    {/* MUDANÇA: Coluna 'Detalhes' REMOVIDA */}
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -357,10 +368,12 @@ export function Veiculos() {
                             <Car className="h-4 w-4 text-blue-600" />
                           </div>
                           <div>
-                            <div>{veiculo.marca} {veiculo.modelo}</div>
+                            {/* MUDANÇA: usa 'brand', 'model' */}
+                            <div>{veiculo.brand} {veiculo.model}</div>
                             <div className="text-sm text-gray-500 flex items-center gap-2">
                               <Calendar className="h-3 w-3" />
-                              {veiculo.ano} • {veiculo.cor}
+                              {/* MUDANÇA: usa 'year', 'color' */}
+                              {veiculo.year} • {veiculo.color || 'N/A'}
                             </div>
                           </div>
                         </div>
@@ -368,27 +381,19 @@ export function Veiculos() {
                       <TableCell>
                         <div className="flex items-center gap-1">
                           <User className="h-3 w-3" />
-                          {getClienteNome(veiculo.clienteId)}
+                          {/* MUDANÇA: usa 'ownerId' */}
+                          {getClienteNome(veiculo.ownerId)}
                         </div>
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="font-mono">
-                          {formatPlaca(veiculo.placa)}
+                          {/* MUDANÇA: usa 'plate' */}
+                          {formatPlaca(veiculo.plate)}
                         </Badge>
                       </TableCell>
-                      <TableCell>
-                        <div className="space-y-1 text-sm">
-                          <div className="flex items-center gap-1">
-                            <Gauge className="h-3 w-3" />
-                            {formatKm(veiculo.km)}
-                          </div>
-                          <div>
-                            <Badge variant="secondary" className="text-xs">
-                              {combustivelOptions.find(c => c.value === veiculo.combustivel)?.label || veiculo.combustivel}
-                            </Badge>
-                          </div>
-                        </div>
-                      </TableCell>
+                      
+                      {/* MUDANÇA: Coluna 'Detalhes' (km, combustivel) REMOVIDA */}
+                      
                       <TableCell className="text-right">
                         <div className="flex gap-2 justify-end">
                           <Button
@@ -408,7 +413,8 @@ export function Veiculos() {
                               <AlertDialogHeader>
                                 <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  Tem certeza que deseja excluir o veículo "{veiculo.marca} {veiculo.modelo} - {formatPlaca(veiculo.placa)}"? 
+                                  {/* MUDANÇA: usa 'brand', 'model', 'plate' */}
+                                  Tem certeza que deseja excluir o veículo "{veiculo.brand} {veiculo.model} - {formatPlaca(veiculo.plate)}"? 
                                   Esta ação não pode ser desfeita.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>

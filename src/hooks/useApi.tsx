@@ -1,72 +1,103 @@
-import { useState } from 'react'
-import { projectId, publicAnonKey } from '../utils/supabase/info'
-import { isSupabaseConfigured } from '../utils/supabase/client'
-import { useAuth } from './useAuth'
+import { useState } from 'react';
+import api from '../services/api';
 
-export interface Cliente {
-  id?: string
-  nome: string
+// --- INTERFACES CORRIGIDAS (para bater com o schema.prisma) ---
+
+// Estes Enums vêm do seu Prisma e devem ser usados no frontend
+export enum UserRole {
+  ADMIN = 'ADMIN',
+  CLIENT = 'CLIENT',
+}
+
+export enum OrderStatus {
+  OPEN = 'OPEN',
+  IN_PROGRESS = 'IN_PROGRESS',
+  FINISHED = 'FINISHED',
+  CANCELED = 'CANCELED',
+}
+
+// Interfaces para as Relações (Muitos-para-Muitos)
+export interface PartUsage {
+  id: string
+  quantity: number
+  orderId: string
+  partId: string
+  // part?: Peca 
+}
+
+export interface ServiceUsage {
+  id: string
+  orderId: string
+  serviceId: string
+  // service?: Servico
+}
+
+// Interfaces Principais
+export interface User {
+  id: string
   email: string
-  telefone: string
-  endereco: string
-  cpf: string
-  createdAt?: string
-  updatedAt?: string
+  name: string | null
+  role: UserRole
+  createdAt: string 
 }
 
-export interface Veiculo {
-  id?: string
-  clienteId: string
-  marca: string
-  modelo: string
-  ano: number
-  placa: string
-  cor: string
-  combustivel: string
-  km: number
-  createdAt?: string
-  updatedAt?: string
+export interface Cliente { // Model Client
+  id: string
+  name: string
+  phone: string
+  email: string | null 
+  address: string | null 
+  createdAt: string
+  // vehicles?: Veiculo[]
+  // orders?: OrdemServico[]
 }
 
-export interface OrdemServico {
-  id?: string
-  numero?: string
-  clienteId: string
-  veiculoId: string
-  descricao: string
-  servicosIds: string[]
-  pecasIds: string[]
-  valor: number
-  status: 'aberta' | 'andamento' | 'concluida'
-  dataInicio: string
-  dataFim?: string
-  observacoes?: string
-  createdAt?: string
-  updatedAt?: string
+export interface Veiculo { // Model Vehicle
+  id: string
+  plate: string
+  model: string
+  brand: string
+  year: number
+  color: string | null 
+  createdAt: string
+  ownerId: string
+  // owner?: Cliente
+  // orders?: OrdemServico[]
 }
 
-export interface Peca {
-  id?: string
-  nome: string
-  codigo: string
-  descricao: string
-  preco: number
-  estoque: number
-  estoqueMinimo: number
-  fornecedor: string
-  createdAt?: string
-  updatedAt?: string
+export interface OrdemServico { // Model Order
+  id: string
+  description: string
+  status: OrderStatus 
+  totalValue: number | null 
+  createdAt: string
+  updatedAt: string
+  clientId: string
+  vehicleId: string
+  partsUsed: PartUsage[]
+  servicesPerformed: ServiceUsage[]
+  number: string;             
+  observations: string | null; 
+  startDate: string;       
+  endDate: string | null;
+  
 }
 
-export interface Servico {
-  id?: string
-  nome: string
-  descricao: string
-  preco: number
-  tempoDuracao: number // em minutos
-  categoria: string
-  createdAt?: string
-  updatedAt?: string
+export interface Peca { // Model Part
+  id: string
+  name: string
+  description: string | null 
+  price: number
+  stock: number
+  // orders?: PartUsage[]
+}
+
+export interface Servico { // Model Service
+  id: string
+  name: string
+  description: string | null 
+  price: number
+  // orders?: ServiceUsage[]
 }
 
 export interface DashboardStats {
@@ -81,202 +112,148 @@ export interface DashboardStats {
   receita: number
 }
 
+// --- ESSA É A PARTE QUE ESTAVA FALTANDO ---
+// --- A LÓGICA DO HOOK ---
+
 export function useApi() {
-  const { accessToken } = useAuth()
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(false);
 
-  const makeRequest = async (endpoint: string, options?: RequestInit) => {
-    setLoading(true)
+  // --- FUNÇÃO makeRequest USANDO AXIOS ---
+  const makeRequest = async (endpoint: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET', data?: any) => {
+    setLoading(true);
     try {
-      if (!isSupabaseConfigured()) {
-        throw new Error('Supabase não está configurado. Verifique suas credenciais.')
+      const response = await api.request({
+        url: endpoint,
+        method: method,
+        data: data, 
+      });
+
+      return response.data;
+    } catch (error: any) {
+      console.error(`Erro na requisição ${method} ${endpoint}:`, error);
+      if (error.response && error.response.data && error.response.data.error) {
+        throw new Error(error.response.data.error);
       }
-
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-d3d28263${endpoint}`,
-        {
-          ...options,
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken || publicAnonKey}`,
-            ...options?.headers,
-          },
-        }
-      )
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Erro na requisição')
-      }
-
-      return data
-    } catch (error) {
-      console.error('API Request error:', error)
-      throw error
+      throw error;
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
+  // --- FUNÇÕES DO CRUD ---
+
   // Dashboard
   const getDashboardStats = async (): Promise<DashboardStats> => {
-    return makeRequest('/dashboard')
+    // A API do backend retorna nomes em inglês e uma estrutura
+    // diferente (ordersByStatus). Aqui fazemos o mapeamento para
+    // a interface `DashboardStats` usada pelo frontend.
+    const res: any = await makeRequest('/dashboard', 'GET');
+
+    return {
+      totalClientes: res.totalClients ?? 0,
+      totalVeiculos: res.totalVehicles ?? 0,
+      totalOrdens: res.totalOrders ?? 0,
+      totalPecas: res.partsCount ?? 0,
+      totalServicos: res.servicesCount ?? 0,
+      ordensAbertas: res.ordersByStatus?.OPEN ?? 0,
+      ordensAndamento: res.ordersByStatus?.IN_PROGRESS ?? 0,
+      ordensConcluidas: res.ordersByStatus?.FINISHED ?? 0,
+      receita: res.totalRevenue ?? 0,
+    } as DashboardStats;
   }
 
   // Clientes
   const getClientes = async (): Promise<Cliente[]> => {
-    return makeRequest('/clientes')
+    return makeRequest('/clientes', 'GET');
   }
 
-  const createCliente = async (cliente: Omit<Cliente, 'id'>): Promise<Cliente> => {
-    return makeRequest('/clientes', {
-      method: 'POST',
-      body: JSON.stringify(cliente),
-    })
+  const createCliente = async (cliente: Omit<Cliente, 'id' | 'createdAt'>): Promise<Cliente> => {
+    return makeRequest('/clientes', 'POST', cliente);
   }
 
-  const updateCliente = async (id: string, cliente: Partial<Cliente>): Promise<Cliente> => {
-    return makeRequest(`/clientes/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(cliente),
-    })
+  const updateCliente = async (id: string, cliente: Partial<Omit<Cliente, 'id' | 'createdAt'>>): Promise<Cliente> => {
+    return makeRequest(`/clientes/${id}`, 'PUT', cliente);
   }
 
   const deleteCliente = async (id: string): Promise<void> => {
-    return makeRequest(`/clientes/${id}`, {
-      method: 'DELETE',
-    })
+    return makeRequest(`/clientes/${id}`, 'DELETE');
   }
-
   // Veículos
   const getVeiculos = async (): Promise<Veiculo[]> => {
-    return makeRequest('/veiculos')
+    return makeRequest('/veiculos', 'GET');
   }
 
-  const createVeiculo = async (veiculo: Omit<Veiculo, 'id'>): Promise<Veiculo> => {
-    return makeRequest('/veiculos', {
-      method: 'POST',
-      body: JSON.stringify(veiculo),
-    })
+  // Agora aceitamos 'ownerId' no payload, pois o frontend seleciona o cliente
+  const createVeiculo = async (veiculo: Omit<Veiculo, 'id' | 'createdAt'>): Promise<Veiculo> => {
+    return makeRequest('/veiculos', 'POST', veiculo);
   }
 
-  const updateVeiculo = async (id: string, veiculo: Partial<Veiculo>): Promise<Veiculo> => {
-    return makeRequest(`/veiculos/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(veiculo),
-    })
+  const updateVeiculo = async (id: string, veiculo: Partial<Omit<Veiculo, 'id' | 'createdAt'>>): Promise<Veiculo> => {
+    return makeRequest(`/veiculos/${id}`, 'PUT', veiculo);
   }
 
   const deleteVeiculo = async (id: string): Promise<void> => {
-    return makeRequest(`/veiculos/${id}`, {
-      method: 'DELETE',
-    })
+    return makeRequest(`/veiculos/${id}`, 'DELETE');
   }
 
   // Ordens de Serviço
   const getOrdens = async (): Promise<OrdemServico[]> => {
-    return makeRequest('/ordens')
+    return makeRequest('/ordens', 'GET');
   }
 
-  const createOrdem = async (ordem: Omit<OrdemServico, 'id' | 'numero'>): Promise<OrdemServico> => {
-    return makeRequest('/ordens', {
-      method: 'POST',
-      body: JSON.stringify(ordem),
-    })
+  const createOrdem = async (ordem: Omit<OrdemServico, 'id' | 'createdAt' | 'updatedAt' | 'partsUsed' | 'servicesPerformed'>): Promise<OrdemServico> => {
+    return makeRequest('/ordens', 'POST', ordem);
   }
 
-  const updateOrdem = async (id: string, ordem: Partial<OrdemServico>): Promise<OrdemServico> => {
-    return makeRequest(`/ordens/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(ordem),
-    })
+  const updateOrdem = async (id: string, ordem: Partial<Omit<OrdemServico, 'id' | 'createdAt' | 'updatedAt' | 'partsUsed' | 'servicesPerformed'>>): Promise<OrdemServico> => {
+    return makeRequest(`/ordens/${id}`, 'PUT', ordem);
   }
 
   const deleteOrdem = async (id: string): Promise<void> => {
-    return makeRequest(`/ordens/${id}`, {
-      method: 'DELETE',
-    })
+    return makeRequest(`/ordens/${id}`, 'DELETE');
   }
 
   // Peças
   const getPecas = async (): Promise<Peca[]> => {
-    return makeRequest('/pecas')
+    return makeRequest('/pecas', 'GET');
   }
 
   const createPeca = async (peca: Omit<Peca, 'id'>): Promise<Peca> => {
-    return makeRequest('/pecas', {
-      method: 'POST',
-      body: JSON.stringify(peca),
-    })
+    return makeRequest('/pecas', 'POST', peca);
   }
 
-  const updatePeca = async (id: string, peca: Partial<Peca>): Promise<Peca> => {
-    return makeRequest(`/pecas/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(peca),
-    })
+  const updatePeca = async (id: string, peca: Partial<Omit<Peca, 'id'>>): Promise<Peca> => {
+    return makeRequest(`/pecas/${id}`, 'PUT', peca);
   }
 
   const deletePeca = async (id: string): Promise<void> => {
-    return makeRequest(`/pecas/${id}`, {
-      method: 'DELETE',
-    })
+    return makeRequest(`/pecas/${id}`, 'DELETE');
   }
 
   // Serviços
   const getServicos = async (): Promise<Servico[]> => {
-    return makeRequest('/servicos')
+    return makeRequest('/servicos', 'GET');
   }
 
   const createServico = async (servico: Omit<Servico, 'id'>): Promise<Servico> => {
-    return makeRequest('/servicos', {
-      method: 'POST',
-      body: JSON.stringify(servico),
-    })
+    return makeRequest('/servicos', 'POST', servico);
   }
 
-  const updateServico = async (id: string, servico: Partial<Servico>): Promise<Servico> => {
-    return makeRequest(`/servicos/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(servico),
-    })
+  const updateServico = async (id: string, servico: Partial<Omit<Servico, 'id'>>): Promise<Servico> => {
+    return makeRequest(`/servicos/${id}`, 'PUT', servico);
   }
 
   const deleteServico = async (id: string): Promise<void> => {
-    return makeRequest(`/servicos/${id}`, {
-      method: 'DELETE',
-    })
+    return makeRequest(`/servicos/${id}`, 'DELETE');
   }
 
   return {
     loading,
-    // Dashboard
     getDashboardStats,
-    // Clientes
-    getClientes,
-    createCliente,
-    updateCliente,
-    deleteCliente,
-    // Veículos
-    getVeiculos,
-    createVeiculo,
-    updateVeiculo,
-    deleteVeiculo,
-    // Ordens
-    getOrdens,
-    createOrdem,
-    updateOrdem,
-    deleteOrdem,
-    // Peças
-    getPecas,
-    createPeca,
-    updatePeca,
-    deletePeca,
-    // Serviços
-    getServicos,
-    createServico,
-    updateServico,
-    deleteServico,
+    getClientes, createCliente, updateCliente, deleteCliente,
+    getVeiculos, createVeiculo, updateVeiculo, deleteVeiculo,
+    getOrdens, createOrdem, updateOrdem, deleteOrdem,
+    getPecas, createPeca, updatePeca, deletePeca,
+    getServicos, createServico, updateServico, deleteServico,
   }
 }

@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    /* ESTA É A LINHA QUE CORRIGE SEU ERRO: */
+    "types": ["vite/client"],
+
+    /* Configurações padrão para Vite + React + TS */
+    "target": "ESNext",
+    "lib": ["DOM", "DOM.Iterable", "ESNext"],
+    "module": "ESNext",
+    "jsx": "react-jsx",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "noEmit": true
+  },
+  "include": ["src"]
+}

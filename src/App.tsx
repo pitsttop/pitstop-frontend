@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react'
 import { AuthProvider, useAuth } from './hooks/useAuth'
+import { jwtDecode } from 'jwt-decode' // <-- MUDANÇA 1: Importa o decodificador
 import { Login } from './components/Login'
-import { SupabaseConfig } from './components/SupabaseConfig'
+import Landing from './components/Landing'
 import { Navbar } from './components/Navbar'
 import { ClienteNavbar } from './components/ClienteNavbar'
 import { Dashboard } from './components/Dashboard'
 import { ClienteDashboard } from './components/ClienteDashboard'
 import { Agendamento } from './components/Agendamento'
-import { CalculadoraOrcamento } from './components/CalculadoraOrcamento'
 import { AcompanhamentoServico } from './components/AcompanhamentoServico'
 import { Clientes } from './components/Clientes'
 import { Veiculos } from './components/Veiculos'
@@ -16,36 +16,22 @@ import { Pecas } from './components/Pecas'
 import { Servicos } from './components/Servicos'
 import { CriarAdmin } from './components/CriarAdmin'
 import { Toaster } from './components/ui/sonner'
-import { isSupabaseConfigured, resetSupabaseClient } from './utils/supabase/client'
+
+// Helper: Define o formato do que está DENTRO da "pulseira" (JWT)
+type JwtPayload = {
+  userId: string;
+  role: 'ADMIN' | 'CLIENT';
+  // (adicione 'iat', 'exp' se precisar)
+}
 
 function AppContent() {
-  const { user, loading } = useAuth()
+  // MUDANÇA 2: Pegamos o 'accessToken', e não o 'user'
+  const { accessToken, loading } = useAuth()
+  const [showLogin, setShowLogin] = useState(false)
   const [activeTab, setActiveTab] = useState('dashboard')
-  const [supabaseConfigured, setSupabaseConfigured] = useState(false)
+  // MUDANÇA 3: Removemos o 'supabaseConfigured' (lixo antigo)
 
-  // Check Supabase configuration on mount
-  useEffect(() => {
-    setSupabaseConfigured(isSupabaseConfigured())
-  }, [])
-
-  // Redirect to dashboard when user logs in
-  useEffect(() => {
-    if (user && !loading) {
-      setActiveTab('dashboard')
-    }
-  }, [user, loading])
-
-  const handleSupabaseConfigured = () => {
-    setSupabaseConfigured(true)
-    resetSupabaseClient() // Reset client to use new credentials
-    // Force a page reload to reinitialize everything with new credentials
-    window.location.reload()
-  }
-
-  // Show Supabase config if not configured
-  if (!supabaseConfigured) {
-    return <SupabaseConfig onConfigured={handleSupabaseConfigured} />
-  }
+  // (O bloco de verificação do Supabase foi removido)
 
   if (loading) {
     return (
@@ -58,10 +44,20 @@ function AppContent() {
     )
   }
 
-  if (!user) {
-    return <Login />
+  // --- MUDANÇA 4: O "PORTEIRO" CORRIGIDO ---
+  
+  // Se não tem "pulseira" (accessToken), mostra a Landing ou o Login quando o usuário clicar em Acessar.
+  if (!accessToken) {
+    return showLogin ? <Login onBack={() => setShowLogin(false)} /> : <Landing onAccess={() => setShowLogin(true)} />
   }
 
+  // Se TEM a "pulseira", decodifica ela para saber quem é o usuário
+  const user = jwtDecode<JwtPayload>(accessToken);
+
+  // Agora podemos checar o cargo (role)
+  const isAdmin = user?.role === 'ADMIN'
+  
+  // O resto do seu código já estava perfeito
   const renderAdminContent = () => {
     switch (activeTab) {
       case 'dashboard':
@@ -89,16 +85,12 @@ function AppContent() {
         return <ClienteDashboard onTabChange={setActiveTab} />
       case 'agendamento':
         return <Agendamento />
-      case 'calculadora':
-        return <CalculadoraOrcamento />
       case 'acompanhamento':
         return <AcompanhamentoServico />
       default:
         return <ClienteDashboard onTabChange={setActiveTab} />
     }
   }
-
-  const isAdmin = user?.userType === 'admin'
 
   return (
     <div className="min-h-screen bg-gray-50">
