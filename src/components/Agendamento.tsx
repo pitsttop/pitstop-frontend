@@ -41,6 +41,24 @@ interface ServiceItem {
   description?: string
 }
 
+const APPOINTMENTS_STORAGE_KEY = 'pitstop:clientAppointments'
+
+interface StoredAppointment {
+  id: string
+  userId: string
+  serviceId: string
+  serviceName: string
+  status: 'SCHEDULED'
+  scheduledFor: string
+  createdAt: string
+  vehicle: {
+    brand: string
+    model: string
+    plate: string
+  }
+  description?: string
+}
+
 export function Agendamento() {
   const { user, accessToken } = useAuth()
   
@@ -120,6 +138,46 @@ export function Agendamento() {
       // TODO: Aqui você fará o POST /ordens futuramente
       // Por enquanto é só simulação
       await new Promise(resolve => setTimeout(resolve, 1500))
+
+      const authUserId = user?.id ?? user?.userId ?? user?.clientId ?? user?.clienteId
+      if (authUserId) {
+        const appointmentId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `appt-${Date.now()}`
+
+        const scheduledDate = new Date(selectedDate.getTime())
+        const [hoursStr, minutesStr] = selectedTime.split(':')
+        const hours = Number(hoursStr) || 0
+        const minutes = Number(minutesStr) || 0
+        scheduledDate.setHours(hours, minutes, 0, 0)
+
+        const storedAppointment: StoredAppointment = {
+          id: appointmentId,
+          userId: String(authUserId),
+          serviceId: selectedServiceId,
+          serviceName: selectedServiceObj?.name ?? 'Serviço',
+          status: 'SCHEDULED',
+          scheduledFor: scheduledDate.toISOString(),
+          createdAt: new Date().toISOString(),
+          vehicle: {
+            brand: vehicleInfo.marca,
+            model: vehicleInfo.modelo,
+            plate: vehicleInfo.placa,
+          },
+          description: description || undefined,
+        }
+
+        try {
+          const raw = localStorage.getItem(APPOINTMENTS_STORAGE_KEY)
+          const parsed = raw ? JSON.parse(raw) : []
+          const appointments: StoredAppointment[] = Array.isArray(parsed) ? parsed : []
+          appointments.push(storedAppointment)
+          localStorage.setItem(APPOINTMENTS_STORAGE_KEY, JSON.stringify(appointments))
+          window.dispatchEvent(new Event('pitstop:appointments-updated'))
+        } catch (storageError) {
+          console.error('Erro ao salvar agendamento localmente:', storageError)
+        }
+      }
       
       toast.success('Agendamento solicitado com sucesso!')
       
@@ -128,6 +186,7 @@ export function Agendamento() {
       setSelectedTime('')
       setSelectedServiceId('')
       setDescription('')
+      setVehicleInfo({ marca: '', modelo: '', placa: '' })
       
     } catch (error) {
       toast.error('Erro ao realizar agendamento')

@@ -1,12 +1,13 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useAuth } from '../hooks/useAuth' // Caminho ajustado
+import api from '../services/api' // Caminho ajustado
 
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
-import { Button } from './ui/button'
-import { Input } from './ui/input'
-import { Label } from './ui/label'
-import { Badge } from './ui/badge'
-import { Progress } from './ui/progress'
-import { Alert, AlertDescription } from './ui/alert'
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card' // Caminho ajustado
+import { Input } from './ui/input' // Caminho ajustado
+import { Label } from './ui/label' // Caminho ajustado
+import { Badge } from './ui/badge' // Caminho ajustado
+import { Progress } from './ui/progress' // Caminho ajustado
+import { Alert, AlertDescription } from './ui/alert' // Caminho ajustado
 
 import {
   Search,
@@ -17,193 +18,385 @@ import {
   Car,
   Calendar,
   Phone,
-  MapPin,
   Wrench,
   Package,
   DollarSign
 } from 'lucide-react'
 
-interface ServicoStatus {
+// --- DEFINIÇÕES E INTERFACES (Omitidas para brevidade, mas devem estar no arquivo) ---
+
+// Interface Order e funções SIMULATE_PROGRESS e TimelineStep omitidas para brevidade
+// Assume-se que você manteve o código anterior para essas partes.
+interface Order {
   id: string
-  numero: string
-  veiculo: string
-  placa: string
-  servico: string
-  status:
-    | 'agendado'
-    | 'recebido'
-    | 'diagnostico'
-    | 'aguardando_pecas'
-    | 'em_execucao'
-    | 'teste'
-    | 'concluido'
-    | 'entregue'
-  dataInicio: string
-  previsaoEntrega: string
-  responsavel: string
-  observacoes: string
-  progresso: number
-  valor?: number
-  itens: Array<{
-    tipo: 'servico' | 'peca'
-    nome: string
-    status: 'pendente' | 'em_andamento' | 'concluido'
-    valor?: number
-  }>
+  number: string 
+  description: string
+  status: 'OPEN' | 'IN_PROGRESS' | 'FINISHED' | 'CANCELED'
+  totalValue?: number
+  startDate: string
+  endDate?: string | null
+  observations: string | null
+  vehicle: { model: string; plate: string; }
+  servicesPerformed: Array<{ id: string; service: { name: string } }>
+  progressoSimulado: number
+}
+// Função de simulação (SIMULATE_PROGRESS)
+const SIMULATE_PROGRESS = (status: string) => {
+  switch (status) {
+    case 'OPEN': return 10
+    case 'IN_PROGRESS': return 50
+    case 'FINISHED': case 'CANCELED': return 100
+    default: return 0
+  }
+}
+// ----------------------------------------------------------------------
+
+const ORDER_STATUS_VALUES: Order['status'][] = ['OPEN', 'IN_PROGRESS', 'FINISHED', 'CANCELED']
+
+const normalizeStatus = (status: unknown): Order['status'] => {
+  const value = typeof status === 'string' ? status.toUpperCase() : ''
+  return ORDER_STATUS_VALUES.includes(value as Order['status'])
+    ? (value as Order['status'])
+    : 'OPEN'
 }
 
-const servicosExemplo: ServicoStatus[] = [
-  {
-    id: '1',
-    numero: 'OS-2024001',
-    veiculo: 'Honda Civic 2020',
-    placa: 'ABC-1234',
-    servico: 'Revisão dos freios',
-    status: 'em_execucao',
-    dataInicio: '2024-01-20',
-    previsaoEntrega: '2024-01-22',
-    responsavel: 'João Silva',
-    observacoes:
-      'Necessária troca das pastilhas dianteiras e disco traseiro',
-    progresso: 65,
-    valor: 450,
-    itens: [
-      { tipo: 'servico', nome: 'Inspeção sistema freios', status: 'concluido' },
-      {
-        tipo: 'peca',
-        nome: 'Pastilhas freio dianteiras',
-        status: 'concluido',
-        valor: 120
-      },
-      {
-        tipo: 'peca',
-        nome: 'Disco freio traseiro',
-        status: 'em_andamento',
-        valor: 180
-      },
-      { tipo: 'servico', nome: 'Montagem e teste', status: 'pendente' }
-    ]
-  },
-  {
-    id: '2',
-    numero: 'OS-2024002',
-    veiculo: 'Toyota Corolla 2019',
-    placa: 'XYZ-5678',
-    servico: 'Troca de óleo',
-    status: 'concluido',
-    dataInicio: '2024-01-15',
-    previsaoEntrega: '2024-01-15',
-    responsavel: 'Maria Santos',
-    observacoes: 'Serviço realizado conforme programado',
-    progresso: 100,
-    valor: 120,
-    itens: [
-      {
-        tipo: 'peca',
-        nome: 'Óleo motor 5W30',
-        status: 'concluido',
-        valor: 65
-      },
-      {
-        tipo: 'peca',
-        nome: 'Filtro de óleo',
-        status: 'concluido',
-        valor: 25
-      },
-      { tipo: 'servico', nome: 'Troca óleo e filtro', status: 'concluido' }
-    ]
+const extractOrderList = (payload: unknown): any[] => {
+  if (Array.isArray(payload)) return payload
+  if (payload && typeof payload === 'object') {
+    const data = payload as Record<string, unknown>
+    const candidateKeys = ['orders', 'ordens', 'items', 'data', 'results', 'content', 'values']
+    for (const key of candidateKeys) {
+      const value = data[key]
+      if (Array.isArray(value)) {
+        return value
+      }
+    }
   }
-]
+  return []
+}
+
+const toIsoOrNull = (value: unknown): string | null => {
+  if (!value) return null
+  const date = new Date(value as any)
+  return Number.isNaN(date.getTime()) ? null : date.toISOString()
+}
+
+const parseNumber = (value: unknown): number | undefined => {
+  if (value === null || value === undefined) return undefined
+  if (typeof value === 'number') return Number.isFinite(value) ? value : undefined
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+const normalizeOrder = (raw: any): Order | null => {
+  if (!raw) return null
+
+  const id = raw.id ?? raw.orderId ?? raw.uuid ?? raw._id
+  if (!id) return null
+
+  const numberValue = raw.number ?? raw.numero ?? raw.orderNumber ?? `OS-${String(id).slice(-6)}`
+  const descriptionValue = raw.description ?? raw.descricao ?? raw.serviceDescription ?? ''
+  const statusValue = raw.status?.name ?? raw.status ?? raw.situacao
+  const startDateIso = toIsoOrNull(raw.startDate ?? raw.createdAt ?? raw.dataInicio ?? raw.inicio)
+  if (!startDateIso) return null
+  const endDateIso = toIsoOrNull(raw.endDate ?? raw.completedAt ?? raw.dataFim ?? raw.finalizacao)
+  const observationsValue = raw.observations ?? raw.observacao ?? raw.notes ?? raw.obs ?? null
+
+  const vehicleRaw = raw.vehicle ?? raw.veiculo ?? raw.vehicleData ?? raw.car ?? raw.carro ?? {}
+  const vehicleModel = vehicleRaw?.model ?? vehicleRaw?.modelo ?? raw.vehicleModel ?? raw.modeloVeiculo ?? 'Veículo'
+  const vehiclePlate = vehicleRaw?.plate ?? vehicleRaw?.placa ?? raw.vehiclePlate ?? raw.placaVeiculo ?? '---'
+
+  const servicesSource = Array.isArray(raw.servicesPerformed)
+    ? raw.servicesPerformed
+    : Array.isArray(raw.serviceItems)
+      ? raw.serviceItems
+      : Array.isArray(raw.services)
+        ? raw.services
+        : Array.isArray(raw.items)
+          ? raw.items
+          : []
+
+  const servicesPerformed = servicesSource
+    .map((item: any, index: number) => {
+      if (!item) return null
+      const serviceId = item.id ?? item.serviceId ?? item.servicoId ?? `${id}-service-${index}`
+      const serviceName = item.service?.name ?? item.name ?? item.serviceName ?? item.nome ?? 'Serviço'
+      return {
+        id: String(serviceId),
+        service: { name: String(serviceName) }
+      }
+    })
+    .filter(Boolean)
+
+  return {
+    id: String(id),
+    number: String(numberValue),
+    description: String(descriptionValue || ''),
+    status: normalizeStatus(statusValue),
+    totalValue: parseNumber(raw.totalValue ?? raw.valorTotal ?? raw.total ?? raw.amount),
+    startDate: startDateIso,
+    endDate: endDateIso,
+    observations: observationsValue ? String(observationsValue) : null,
+    vehicle: {
+      model: String(vehicleModel || 'Veículo'),
+      plate: String(vehiclePlate || '---')
+    },
+    servicesPerformed,
+    progressoSimulado: 0
+  }
+}
 
 export function AcompanhamentoServico() {
+  const { user } = useAuth()
   const [searchTerm, setSearchTerm] = useState('')
-  const [servicos] = useState<ServicoStatus[]>(servicosExemplo)
-  const [selectedServico, setSelectedServico] =
-    useState<ServicoStatus | null>(null)
+  const [orders, setOrders] = useState<Order[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
+  const [clientId, setClientId] = useState<string | null>(null)
+  const [resolvingClientId, setResolvingClientId] = useState(false)
 
+  const selectedOrder = selectedOrderId
+    ? orders.find((order) => order.id === selectedOrderId) ?? null
+    : null
+
+  useEffect(() => {
+    let active = true
+
+    const resetClientState = () => {
+      if (!active) return
+      setClientId(null)
+      setResolvingClientId(false)
+    }
+
+    if (!user) {
+      resetClientState()
+      return () => {
+        active = false
+      }
+    }
+
+    setResolvingClientId(true)
+
+    const directCandidates = [
+      user.clientId,
+      user.clienteId,
+      user?.client?.id,
+      user?.client?.clientId,
+      user?.cliente?.id,
+      user?.cliente?.clientId,
+    ] as Array<string | number | null | undefined>
+
+    if (user?.role === 'CLIENT' && !directCandidates.some(Boolean)) {
+      directCandidates.push(user.id)
+    }
+
+    const directCandidate = directCandidates.find((value) => value !== null && value !== undefined)
+    if (directCandidate) {
+      if (active) {
+        setClientId(String(directCandidate))
+        setResolvingClientId(false)
+      }
+      return () => {
+        active = false
+      }
+    }
+
+    const fallbackEndpoints = [
+      '/clientes/me',
+      '/clients/me',
+      '/cliente/me',
+      '/client/me',
+    ]
+
+    ;(async () => {
+      for (const endpoint of fallbackEndpoints) {
+        try {
+          const response = await api.get(endpoint)
+          const data = response.data ?? {}
+          const candidate =
+            data.id ??
+            data.clientId ??
+            data.client?.id ??
+            data.client?.clientId ??
+            data.cliente?.id ??
+            data.cliente?.clientId
+
+          if (candidate) {
+            if (active) {
+              setClientId(String(candidate))
+              setResolvingClientId(false)
+            }
+            return
+          }
+        } catch (error) {
+          console.warn(`[AcompanhamentoServico] Falha ao resolver clientId via ${endpoint}`, error)
+        }
+      }
+
+      if (active) {
+        setClientId(null)
+        setResolvingClientId(false)
+      }
+    })()
+
+    return () => {
+      active = false
+    }
+  }, [user, clientId])
+
+
+  useEffect(() => {
+    if (!user) {
+      setOrders([])
+      setSelectedOrderId(null)
+      setLoading(false)
+      return
+    }
+
+    let isSubscribed = true
+    let hasLoadedOnce = false
+
+    const fetchClientOrders = async () => {
+      if (!hasLoadedOnce) {
+        setLoading(true)
+      }
+
+      const idCandidates = [
+        clientId,
+        user.id,
+        user.clientId,
+        user.clienteId,
+        user.userId,
+        user?.client?.id,
+      ].filter(Boolean).map((value: any) => String(value))
+
+      const endpointCandidates = [
+        '/clientes/me/ordens',
+        '/me/ordens',
+  // Mantemos esse fallback apenas para o caso do backend expor uma rota explícita por cliente.
+  ...idCandidates.map((id: string) => `/clientes/${id}/ordens`),
+      ].filter(Boolean)
+
+      const uniqueEndpoints = Array.from(new Set(endpointCandidates))
+
+      try {
+        let fetched = false
+
+        for (const endpoint of uniqueEndpoints) {
+          try {
+            const response = await api.get(endpoint as string)
+            const list = extractOrderList(response.data)
+
+            if (!Array.isArray(list)) {
+              continue
+            }
+
+            const normalized = list
+              .map(normalizeOrder)
+              .filter((order): order is Order => Boolean(order))
+              .map((order) => ({
+                ...order,
+                progressoSimulado: SIMULATE_PROGRESS(order.status),
+              }))
+
+            if (!isSubscribed) {
+              return
+            }
+
+            setOrders(normalized)
+            setSelectedOrderId((prev) => {
+              if (prev && normalized.some((order) => order.id === prev)) {
+                return prev
+              }
+              return normalized.length > 0 ? normalized[0].id : null
+            })
+
+            fetched = true
+            console.info(`[AcompanhamentoServico] Ordens carregadas por ${endpoint}`)
+            break
+          } catch (endpointError) {
+            console.warn(`[AcompanhamentoServico] Falha ao buscar ${endpoint}`, endpointError)
+          }
+        }
+
+        if (!fetched) {
+          if (isSubscribed) {
+            setOrders([])
+            setSelectedOrderId(null)
+          }
+        }
+      } catch (error) {
+        // MUITO IMPORTANTE: Se o backend retornar 404 ou 500, o frontend não quebra
+        console.error('Erro ao carregar ordens do cliente (API):', error)
+        if (isSubscribed) {
+          setOrders([]) // Garante que a lista fique vazia em caso de erro.
+          setSelectedOrderId(null)
+        }
+      } finally {
+        // ✅ GARANTE QUE O LOADING TERMINE, INDEPENDENTE DO SUCESSO OU FALHA
+        if (isSubscribed) {
+          setLoading(false)
+        }
+        hasLoadedOnce = true
+      }
+    }
+
+    fetchClientOrders()
+    const intervalId = setInterval(fetchClientOrders, 15000)
+    return () => {
+      isSubscribed = false
+      clearInterval(intervalId)
+    }
+  }, [user])
+
+  // --- Funções de Mapeamento (Permanecem as mesmas) ---
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'agendado':
-        return 'bg-blue-100 text-blue-800 border-blue-200'
-      case 'recebido':
-        return 'bg-purple-100 text-purple-800 border-purple-200'
-      case 'diagnostico':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200'
-      case 'aguardando_pecas':
-        return 'bg-orange-100 text-orange-800 border-orange-200'
-      case 'em_execucao':
-        return 'bg-indigo-100 text-indigo-800 border-indigo-200'
-      case 'teste':
-        return 'bg-cyan-100 text-cyan-800 border-cyan-200'
-      case 'concluido':
-        return 'bg-green-100 text-green-800 border-green-200'
-      case 'entregue':
-        return 'bg-gray-100 text-gray-800 border-gray-200'
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-200'
+      case 'OPEN': return 'bg-blue-100 text-blue-800 border-blue-200'
+      case 'IN_PROGRESS': return 'bg-indigo-100 text-indigo-800 border-indigo-200'
+      case 'FINISHED': return 'bg-green-100 text-green-800 border-green-200'
+      case 'CANCELED': return 'bg-red-100 text-red-800 border-red-200'
+      default: return 'bg-gray-100 text-gray-800 border-gray-200'
     }
   }
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'agendado':
-        return 'Agendado'
-      case 'recebido':
-        return 'Recebido'
-      case 'diagnostico':
-        return 'Diagnóstico'
-      case 'aguardando_pecas':
-        return 'Aguardando Peças'
-      case 'em_execucao':
-        return 'Em Execução'
-      case 'teste':
-        return 'Em Teste'
-      case 'concluido':
-        return 'Concluído'
-      case 'entregue':
-        return 'Entregue'
-      default:
-        return 'Desconhecido'
+      case 'OPEN': return 'Aguardando Início'
+      case 'IN_PROGRESS': return 'Em Execução'
+      case 'FINISHED': return 'Concluído'
+      case 'CANCELED': return 'Cancelado'
+      default: return 'Desconhecido'
     }
   }
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'agendado':
-        return <Calendar className="h-4 w-4" />
-      case 'recebido':
-      case 'diagnostico':
-      case 'aguardando_pecas':
-      case 'em_execucao':
-      case 'teste':
-        return <Clock className="h-4 w-4" />
-      case 'concluido':
-      case 'entregue':
-        return <CheckCircle className="h-4 w-4" />
-      default:
-        return <AlertCircle className="h-4 w-4" />
+      case 'FINISHED': return <CheckCircle className="h-4 w-4" />
+      case 'OPEN': return <Calendar className="h-4 w-4" />
+      case 'IN_PROGRESS': return <Clock className="h-4 w-4" />
+      case 'CANCELED': return <AlertCircle className="h-4 w-4" />
+      default: return <AlertCircle className="h-4 w-4" />
     }
   }
 
   const getItemStatusColor = (status: string) => {
     switch (status) {
-      case 'concluido':
-        return 'text-green-600'
-      case 'em_andamento':
-        return 'text-yellow-600'
-      case 'pendente':
-        return 'text-gray-500'
-      default:
-        return 'text-gray-500'
+      case 'concluido': return 'text-green-600'
+      case 'em_andamento': return 'text-yellow-600'
+      case 'pendente': return 'text-gray-500'
+      default: return 'text-gray-500'
     }
   }
 
-  const filteredServicos = servicos.filter(
-    (servico) =>
-      servico.numero.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      servico.veiculo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      servico.placa.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredOrders = orders.filter(
+    (order) =>
+      order.number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.vehicle.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.vehicle.plate.toLowerCase().includes(searchTerm.toLowerCase())
   )
+  // --- Fim das Funções de Mapeamento ---
+
 
   return (
     <div className="p-6 space-y-6">
@@ -215,7 +408,7 @@ export function AcompanhamentoServico() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* LISTA DE SERVIÇOS */}
+        {/* LISTA DE SERVIÇOS (Ordens) */}
         <div className="lg:col-span-1">
           <Card>
             <CardHeader>
@@ -224,7 +417,7 @@ export function AcompanhamentoServico() {
                 Meus Serviços
               </CardTitle>
 
-              <div>
+              <div className="pt-2">
                 <Label htmlFor="search">Buscar</Label>
                 <Input
                   id="search"
@@ -236,30 +429,35 @@ export function AcompanhamentoServico() {
             </CardHeader>
 
             <CardContent>
-              {filteredServicos.length > 0 ? (
+              {loading ? (
+                <div className="text-center py-8 text-gray-500 flex flex-col items-center">
+                  <Clock className="h-8 w-8 animate-spin text-blue-500 mb-2"/>
+                  Carregando ordens...
+                </div>
+              ) : filteredOrders.length > 0 ? (
                 <div className="space-y-3">
-                  {filteredServicos.map((servico) => (
+                  {filteredOrders.map((order) => (
                     <Card
-                      key={servico.id}
+                      key={order.id}
                       className={`cursor-pointer hover:shadow-md transition-shadow ${
-                        selectedServico?.id === servico.id
+                        selectedOrderId === order.id
                           ? 'ring-2 ring-blue-500'
                           : ''
                       }`}
-                      onClick={() => setSelectedServico(servico)}
+                      onClick={() => setSelectedOrderId(order.id)}
                     >
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between mb-2">
                           <div className="font-medium">
-                            {servico.numero}
+                            {order.number}
                           </div>
 
                           <Badge
-                            className={getStatusColor(servico.status)}
+                            className={getStatusColor(order.status)}
                           >
-                            {getStatusIcon(servico.status)}
+                            {getStatusIcon(order.status)}
                             <span className="ml-1">
-                              {getStatusText(servico.status)}
+                              {getStatusText(order.status)}
                             </span>
                           </Badge>
                         </div>
@@ -267,20 +465,20 @@ export function AcompanhamentoServico() {
                         <div className="text-sm text-gray-600 space-y-1">
                           <div className="flex items-center">
                             <Car className="mr-2 h-3 w-3" />
-                            {servico.veiculo}
+                            {order.vehicle.model} ({order.vehicle.plate})
                           </div>
 
-                          <div>{servico.servico}</div>
+                          <div>{order.description}</div>
 
                           <div className="flex items-center mt-2">
                             <div className="flex-1">
                               <Progress
-                                value={servico.progresso}
+                                value={order.progressoSimulado}
                                 className="h-2"
                               />
                             </div>
                             <span className="ml-2 text-xs">
-                              {servico.progresso}%
+                              {order.progressoSimulado}%
                             </span>
                           </div>
                         </div>
@@ -291,17 +489,17 @@ export function AcompanhamentoServico() {
               ) : (
                 <div className="text-center py-8 text-gray-500">
                   <Eye className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                  <p>Nenhum serviço encontrado</p>
-                  <p className="text-sm">Verifique os termos de busca</p>
+                  <p>Nenhuma ordem de serviço encontrada</p>
+                  <p className="text-sm">Verifique os termos de busca ou agende seu primeiro serviço</p>
                 </div>
               )}
             </CardContent>
           </Card>
         </div>
 
-        {/* DETALHES DO SERVIÇO */}
+        {/* DETALHES DA ORDEM SELECIONADA */}
         <div className="lg:col-span-2">
-          {selectedServico ? (
+          {selectedOrder ? (
             <div className="space-y-6">
               {/* HEADER */}
               <Card>
@@ -309,16 +507,16 @@ export function AcompanhamentoServico() {
                   <div className="flex items-center justify-between">
                     <CardTitle className="flex items-center">
                       <Wrench className="mr-2 h-5 w-5" />
-                      {selectedServico.numero}
+                      {selectedOrder.number}
                     </CardTitle>
 
                     <Badge
-                      className={getStatusColor(selectedServico.status)}
+                      className={getStatusColor(selectedOrder.status)}
                       variant="outline"
                     >
-                      {getStatusIcon(selectedServico.status)}
+                      {getStatusIcon(selectedOrder.status)}
                       <span className="ml-1">
-                        {getStatusText(selectedServico.status)}
+                        {getStatusText(selectedOrder.status)}
                       </span>
                     </Badge>
                   </div>
@@ -331,10 +529,10 @@ export function AcompanhamentoServico() {
                         <Car className="mr-2 h-4 w-4 text-gray-500" />
                         <div>
                           <div className="font-medium">
-                            {selectedServico.veiculo}
+                            {selectedOrder.vehicle.model}
                           </div>
                           <div className="text-sm text-gray-600">
-                            Placa: {selectedServico.placa}
+                            Placa: {selectedOrder.vehicle.plate}
                           </div>
                         </div>
                       </div>
@@ -345,15 +543,17 @@ export function AcompanhamentoServico() {
                           <div className="text-sm">
                             Início:{' '}
                             {new Date(
-                              selectedServico.dataInicio
+                              selectedOrder.startDate
                             ).toLocaleDateString('pt-BR')}
                           </div>
-                          <div className="text-sm">
-                            Previsão:{' '}
-                            {new Date(
-                              selectedServico.previsaoEntrega
-                            ).toLocaleDateString('pt-BR')}
-                          </div>
+                          {selectedOrder.endDate && (
+                            <div className="text-sm">
+                              Entrega:{' '}
+                              {new Date(
+                                selectedOrder.endDate
+                              ).toLocaleDateString('pt-BR')}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -362,20 +562,20 @@ export function AcompanhamentoServico() {
                       <div className="flex items-center">
                         <Wrench className="mr-2 h-4 w-4 text-gray-500" />
                         <div>
-                          <div className="font-medium">Responsável</div>
+                          <div className="font-medium">Serviço Principal</div>
                           <div className="text-sm text-gray-600">
-                            {selectedServico.responsavel}
+                            {selectedOrder.description}
                           </div>
                         </div>
                       </div>
 
-                      {selectedServico.valor && (
+                      {typeof selectedOrder.totalValue === 'number' && (
                         <div className="flex items-center">
                           <DollarSign className="mr-2 h-4 w-4 text-gray-500" />
                           <div>
-                            <div className="font-medium">Valor</div>
+                            <div className="font-medium">Valor Total</div>
                             <div className="text-sm text-gray-600">
-                              R$ {selectedServico.valor.toFixed(2)}
+                              R$ {selectedOrder.totalValue.toFixed(2)}
                             </div>
                           </div>
                         </div>
@@ -389,191 +589,54 @@ export function AcompanhamentoServico() {
                     </div>
                     <div className="flex items-center">
                       <Progress
-                        value={selectedServico.progresso}
+                        value={selectedOrder.progressoSimulado}
                         className="flex-1"
                       />
                       <span className="ml-3 text-sm font-medium">
-                        {selectedServico.progresso}%
+                        {selectedOrder.progressoSimulado}%
                       </span>
                     </div>
                   </div>
 
-                  {selectedServico.observacoes && (
+                  {selectedOrder.observations && (
                     <Alert className="mt-4">
                       <AlertCircle className="h-4 w-4" />
                       <AlertDescription>
                         <strong>Observações:</strong>{' '}
-                        {selectedServico.observacoes}
+                        {selectedOrder.observations}
                       </AlertDescription>
                     </Alert>
                   )}
                 </CardContent>
               </Card>
 
-              {/* ITENS DO SERVIÇO */}
+              {/* ITENS DO SERVIÇO (Serviços + Peças Usadas) */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Itens do Serviço</CardTitle>
+                  <CardTitle>Serviços e Peças</CardTitle>
                 </CardHeader>
 
                 <CardContent>
                   <div className="space-y-3">
-                    {selectedServico.itens.map((item, index) => (
+                    {(selectedOrder.servicesPerformed ?? []).map((item) => (
                       <div
-                        key={index}
+                        key={item.id}
                         className="flex items-center justify-between p-3 border rounded-lg"
                       >
                         <div className="flex items-center space-x-3">
-                          {item.tipo === 'servico' ? (
-                            <Wrench className="h-4 w-4 text-blue-600" />
-                          ) : (
-                            <Package className="h-4 w-4 text-green-600" />
-                          )}
-
+                          <Wrench className="h-4 w-4 text-blue-600" />
                           <div>
                             <div className="font-medium">
-                              {item.nome}
+                              {item.service.name} (Serviço)
                             </div>
-                            <div
-                              className={`text-sm ${getItemStatusColor(
-                                item.status
-                              )}`}
-                            >
-                              {item.status === 'concluido'
-                                ? '✓ Concluído'
-                                : item.status === 'em_andamento'
-                                ? '⏳ Em andamento'
-                                : '⏸ Pendente'}
+                            <div className={`text-sm ${getItemStatusColor('concluido')}`}>
+                                ✓ Concluído
                             </div>
                           </div>
                         </div>
-
-                        {item.valor && (
-                          <div className="text-sm font-medium">
-                            R$ {item.valor.toFixed(2)}
-                          </div>
-                        )}
                       </div>
                     ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* TIMELINE */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Timeline do Serviço</CardTitle>
-                </CardHeader>
-
-                <CardContent>
-                  <div className="space-y-4">
-                    {/* Recebido */}
-                    <div className="flex items-center space-x-3">
-                      <div className="bg-green-100 p-2 rounded-full">
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                      </div>
-                      <div>
-                        <div className="font-medium">Serviço Recebido</div>
-                        <div className="text-sm text-gray-600">
-                          {new Date(
-                            selectedServico.dataInicio
-                          ).toLocaleString('pt-BR')}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Diagnóstico */}
-                    <div className="flex items-center space-x-3">
-                      <div
-                        className={`p-2 rounded-full ${
-                          selectedServico.progresso >= 30
-                            ? 'bg-green-100'
-                            : 'bg-gray-100'
-                        }`}
-                      >
-                        <CheckCircle
-                          className={`h-4 w-4 ${
-                            selectedServico.progresso >= 30
-                              ? 'text-green-600'
-                              : 'text-gray-400'
-                          }`}
-                        />
-                      </div>
-
-                      <div>
-                        <div className="font-medium">
-                          Diagnóstico Realizado
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          {selectedServico.progresso >= 30
-                            ? 'Concluído'
-                            : 'Em andamento'}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Execução */}
-                    <div className="flex items-center space-x-3">
-                      <div
-                        className={`p-2 rounded-full ${
-                          selectedServico.progresso >= 70
-                            ? 'bg-green-100'
-                            : 'bg-gray-100'
-                        }`}
-                      >
-                        <Clock
-                          className={`h-4 w-4 ${
-                            selectedServico.progresso >= 70
-                              ? 'text-green-600'
-                              : 'text-gray-400'
-                          }`}
-                        />
-                      </div>
-
-                      <div>
-                        <div className="font-medium">
-                          Execução do Serviço
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          {selectedServico.progresso >= 70
-                            ? 'Concluído'
-                            : selectedServico.progresso >= 30
-                            ? 'Em andamento'
-                            : 'Aguardando'}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Pronto para entrega */}
-                    <div className="flex items-center space-x-3">
-                      <div
-                        className={`p-2 rounded-full ${
-                          selectedServico.progresso >= 100
-                            ? 'bg-green-100'
-                            : 'bg-gray-100'
-                        }`}
-                      >
-                        <CheckCircle
-                          className={`h-4 w-4 ${
-                            selectedServico.progresso >= 100
-                              ? 'text-green-600'
-                              : 'text-gray-400'
-                          }`}
-                        />
-                      </div>
-                      <div>
-                        <div className="font-medium">
-                          Pronto para Entrega
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          {selectedServico.progresso >= 100
-                            ? new Date(
-                                selectedServico.previsaoEntrega
-                              ).toLocaleString('pt-BR')
-                            : 'Aguardando conclusão'}
-                        </div>
-                      </div>
-                    </div>
+                    {/* //TODO: Você precisaria de um array de partsUsed no backend para renderizar aqui */}
                   </div>
                 </CardContent>
               </Card>

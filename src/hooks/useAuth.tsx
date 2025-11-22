@@ -2,12 +2,15 @@ import { createContext, useContext, ReactNode, useState, useEffect } from 'react
 import authApi from '../services/authApi'; 
 import api from '../services/api';
 
+// 1. Definição do Tipo do Contexto (incluindo createAdmin)
 type AuthContextType = {
   accessToken: string | null;
   user: any | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => void;
+  // A função nova que o componente CriarAdmin precisa:
+  createAdmin: (email: string, password: string, name: string) => Promise<{ error?: string }>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -17,63 +20,48 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // --- MUDANÇA 1: O "VIGILANTE" DO TOKEN ---
-  // Sempre que o accessToken mudar (login ou logout), configuramos o Axios.
+  // Configura o Token nos headers (Tanto para API quanto para AuthApi)
   useEffect(() => {
     if (accessToken) {
-      // Cola o crachá na testa do mensageiro (Axios)
       api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+      // IMPORTANTE: O AuthApi também precisa do token para acessar a rota /admin
+      authApi.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
       localStorage.setItem('accessToken', accessToken);
     } else {
-      // Remove o crachá se não tiver token
       delete api.defaults.headers.common['Authorization'];
-      // Não removemos do localStorage aqui para permitir o fluxo de refresh, 
-      // mas o signOut faz isso explicitamente.
+      delete authApi.defaults.headers.common['Authorization'];
     }
   }, [accessToken]); 
 
-  // --- MUDANÇA 2: CARGA INICIAL (F5) ---
+  // Carga inicial ao dar F5
   useEffect(() => {
     const loadStorageData = async () => {
       const storedToken = localStorage.getItem('accessToken');
-      
       if (storedToken) {
         setAccessToken(storedToken);
-        // IMPORTANTE: Injetamos manualmente aqui também para garantir
-        // que a requisição fetchUser abaixo já vá com o token.
         api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
-        
+        authApi.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
         await fetchUser();
       }
       setLoading(false);
     };
-
     loadStorageData();
   }, []);
 
   const fetchUser = async () => {
-    // Tenta a rota padrão /me
     try {
-      // Ajuste para bater na sua API de Auth ou Backend, dependendo de onde está o /me
       const res = await api.get('/auth/me').catch(() => api.get('/me')); 
       setUser(res.data);
-      return;
-    } catch (e) {
-       // Silencioso no primeiro erro
-    }
+    } catch (e) { }
 
-    // Fallbacks se a rota principal falhar
     const candidatePaths = ['/users/me', '/clientes/me'];
     for (const path of candidatePaths) {
       try {
         const res = await api.get(path);
         setUser(res.data);
         return;
-      } catch (err) {
-        // continua tentando
-      }
+      } catch (err) { }
     }
-    console.warn('fetchUser: Não foi possível obter dados do usuário.');
   };
 
   const signIn = async (email: string, password: string) => {
@@ -81,12 +69,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const response = await authApi.post('/auth/login', { email, password });
       const { accessToken } = response.data;
-
-      // Ao setar o estado aqui, o useEffect lá de cima (Mudança 1) dispara 
-      // e configura o Axios e o LocalStorage automaticamente.
       setAccessToken(accessToken);
-      
-      // Espera um pouquinho para o estado atualizar e busca o user
       await fetchUser();
     } catch (error) {
       console.error('Erro no login:', error);
@@ -96,14 +79,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // 2. Implementação da função createAdmin
+  const createAdmin = async (email: string, password: string, name: string) => {
+    try {
+      // Chama a rota /auth/admin (que exige token de admin no header)
+      await authApi.post('/auth/admin', { email, password, name });
+      return {}; // Retorna vazio se deu certo
+    } catch (error: any) {
+      console.error('Erro ao criar admin:', error);
+      const errorMsg = error.response?.data?.error || 'Erro desconhecido ao criar administrador.';
+      return { error: errorMsg };
+    }
+  };
+
   const signOut = () => {
     localStorage.removeItem('accessToken');
     setAccessToken(null);
     setUser(null);
-    // O useEffect vai limpar o header do axios automaticamente
   };
 
-  const value = { accessToken, user, loading, signIn, signOut };
+  // 3. Disponibilizamos a função no valor do contexto
+  const value = { accessToken, user, loading, signIn, signOut, createAdmin };
 
   if (loading) return null; 
 

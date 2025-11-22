@@ -1,34 +1,36 @@
 import { useEffect, useState } from 'react'
-// MUDANÇA: Importamos os Enums e as interfaces de junção
-import { useApi, OrdemServico, Cliente, Veiculo, Peca, Servico, OrderStatus, PartUsage, ServiceUsage } from '../hooks/useApi'
-import { Button } from './ui/button'
-import { Input } from './ui/input'
-import { Label } from './ui/label'
-import { Textarea } from './ui/textarea'
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
-import { Badge } from './ui/badge'
-import { Checkbox } from './ui/checkbox'
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './ui/alert-dialog'
-import { Plus, Edit, Trash2, FileText, User, Car, Clock, CheckCircle, AlertCircle, Package, Settings, DollarSign } from 'lucide-react'
+// CORREÇÃO: Alterado de '../hooks/useApi' para '@/hooks/useApi'
+import { useApi, OrdemServico, Cliente, Veiculo, Peca, Servico, OrderStatus } from '../hooks/useApi'
+import { Button } from '../components/ui/button'
+import { Input } from '../components/ui/input'
+import { Label } from '../components/ui/label'
+import { Textarea } from '../components/ui/textarea'
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
+import { Badge } from '../components/ui/badge'
+import { Checkbox } from '../components/ui/checkbox'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../components/ui/alert-dialog'
+import { Plus, Edit, Trash2, FileText, User, Car, Clock, CheckCircle, AlertCircle, Settings, DollarSign } from 'lucide-react'
 import { toast } from 'sonner'
 
-// MUDANÇA: Tipo de formulário atualizado para bater com a API
-// Note que partsUsed e servicesPerformed são tratados separadamente
-type OrdemFormData = Omit<OrdemServico, 'id' | 'createdAt' | 'updatedAt' | 'partsUsed' | 'servicesPerformed'> & {
-  // Usamos IDs para o formulário, e convertemos no 'handleSubmit'
-  pecas: { id: string, quantity: number }[];
-  servicos: { id: string }[];
+type OrdemFormData = Omit<OrdemServico, 'id' | 'createdAt' | 'updatedAt' | 'partsUsed' | 'servicesPerformed' | 'clientId' | 'vehicleId' | 'status'> & {
+  clientId: string; 
+  vehicleId: string; 
+  status: OrderStatus;
+  servicosSelecionados: string[]; 
+  pecasSelecionadas: { id: string, quantity: number }[];
 }
 
 export function Ordens() {
   const { 
     getOrdens, createOrdem, updateOrdem, deleteOrdem,
+    updateOrdemStatus,
+    addPartToOrdem, addServiceToOrdem,
     getClientes, getVeiculos, getPecas, getServicos,
     loading 
-  } = useApi()
+  } = useApi() 
   
   const [ordens, setOrdens] = useState<OrdemServico[]>([])
   const [clientes, setClientes] = useState<Cliente[]>([])
@@ -41,20 +43,21 @@ export function Ordens() {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   
-  // MUDANÇA: 'formData' inicializado com os nomes e tipos corretos do backend
-  const [formData, setFormData] = useState<OrdemFormData>({
+  const initialFormData: OrdemFormData = {
     clientId: '',
     vehicleId: '',
-    number: '', // O backend vai gerar, mas podemos querer mostrar/editar
+    number: '',
     description: '',
     observations: '',
     startDate: new Date().toISOString().split('T')[0],
     endDate: '',
-    servicos: [], // MUDANÇA: Lógica de peças/serviços
-    pecas: [],    // MUDANÇA: Lógica de peças/serviços
+    servicosSelecionados: [],
+    pecasSelecionadas: [],
     totalValue: 0,
-    status: OrderStatus.OPEN, // MUDANÇA: Usando Enum
-  })
+    status: OrderStatus.OPEN,
+  }
+
+  const [formData, setFormData] = useState<OrdemFormData>(initialFormData)
 
   useEffect(() => {
     loadData()
@@ -80,24 +83,38 @@ export function Ordens() {
     }
   }
 
-  // MUDANÇA: 'resetForm' atualizado
   const resetForm = () => {
-    setFormData({
-      clientId: '',
-      vehicleId: '',
-      number: '',
-      description: '',
-      observations: '',
-      startDate: new Date().toISOString().split('T')[0],
-      endDate: '',
-      servicos: [],
-      pecas: [],
-      totalValue: 0,
-      status: OrderStatus.OPEN,
-    })
+    setFormData(initialFormData)
     setEditingOrdem(null)
   }
 
+  const handleEdit = (ordem: OrdemServico) => {
+    setEditingOrdem(ordem)
+    
+    // --- Proteção contra undefined (Fio Terra) ---
+    const servicosIds = (ordem.servicesPerformed || []).map(s => s.serviceId);
+    
+    const pecasList = (ordem.partsUsed || [])
+      .map(p => ({ id: p.part?.id || '', quantity: p.quantity }))
+      .filter(p => p.id);
+    // ---------------------------------------------
+
+    setFormData({
+      clientId: ordem.clientId,
+      vehicleId: ordem.vehicleId,
+      number: ordem.number,
+      description: ordem.description,
+      observations: ordem.observations || '',
+      startDate: new Date(ordem.startDate).toISOString().split('T')[0],
+      endDate: ordem.endDate ? new Date(ordem.endDate).toISOString().split('T')[0] : '',
+      status: ordem.status,
+      totalValue: getOrdemTotalValue(ordem),
+      servicosSelecionados: servicosIds,
+      pecasSelecionadas: pecasList,
+    })
+    setDialogOpen(true)
+  }
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
@@ -106,61 +123,68 @@ export function Ordens() {
       return
     }
 
-    // MUDANÇA: A lógica de 'create' e 'update' do Prisma é complexa.
-    // O frontend NÃO DEVE mandar 'partsUsed' ou 'servicesPerformed'.
-    // O backend (API) é quem deve lidar com a criação/conexão
-    // das tabelas de junção (PartUsage, ServiceUsage) com base
-    // nos IDs que enviamos.
+  const { servicosSelecionados, pecasSelecionadas, ...ordemData } = formData
+
+  const totalCalculado = calcularValorTotal()
+  const totalParaEnviar = typeof formData.totalValue === 'number' && !Number.isNaN(formData.totalValue)
+    ? Number(formData.totalValue)
+    : totalCalculado
     
-    // Por agora, vamos simplificar e OMITIR o envio de peças/serviços
-    // até que a ROTA de backend esteja pronta para recebê-los.
-    const { pecas, servicos, ...ordemData } = formData;
-    
-    // Prepara os dados para enviar (convertendo valores vazios para null)
-    const dataToSubmit = {
-        ...ordemData,
-        observations: ordemData.observations || null,
-        endDate: ordemData.endDate || null,
-        totalValue: ordemData.totalValue || null,
-        // TODO: Enviar 'pecas' e 'servicos' quando o backend souber recebê-los
-    };
+  const dataToSubmit = {
+    ...ordemData,
+    startDate: new Date(ordemData.startDate).toISOString(),
+    observations: ordemData.observations || null,
+    endDate: ordemData.endDate ? new Date(ordemData.endDate).toISOString() : null,
+    totalValue: totalParaEnviar,
+  };
 
     try {
+      let ordemId = editingOrdem?.id;
+
       if (editingOrdem) {
-        await updateOrdem(editingOrdem.id!, dataToSubmit)
-        toast.success('Ordem de serviço atualizada com sucesso!')
+        await updateOrdem(ordemId!, dataToSubmit);
+        toast.success('Detalhes da ordem atualizados com sucesso!');
       } else {
-        await createOrdem(dataToSubmit)
-        toast.success('Ordem de serviço criada com sucesso!')
+        const createdOrdem = await createOrdem(dataToSubmit);
+        ordemId = createdOrdem.id;
+        
+        for (const serviceId of servicosSelecionados) {
+            await addServiceToOrdem(ordemId, serviceId);
+        }
+
+        for (const pecaForm of pecasSelecionadas) {
+            await addPartToOrdem(ordemId, pecaForm.id, pecaForm.quantity);
+        }
+        
+        toast.success('Ordem de serviço criada com sucesso!');
       }
-      
+
       setDialogOpen(false)
       resetForm()
       loadData()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao salvar ordem:', error)
-      toast.error('Erro ao salvar ordem de serviço')
+      const errorMsg = error.message || 'Erro ao salvar ordem de serviço';
+      toast.error(errorMsg)
     }
   }
+  
+  const handleStatusChange = async (id: string, newStatus: OrderStatus) => {
+    try {
+      const ordemAtual = ordens.find(o => o.id === id);
 
-  // MUDANÇA: 'handleEdit' atualizado
-  const handleEdit = (ordem: OrdemServico) => {
-    setEditingOrdem(ordem)
-    setFormData({
-      clientId: ordem.clientId,
-      vehicleId: ordem.vehicleId,
-      number: ordem.number,
-      description: ordem.description,
-      observations: ordem.observations || '',
-      startDate: new Date(ordem.startDate).toISOString().split('T')[0], // Formata data
-      endDate: ordem.endDate ? new Date(ordem.endDate).toISOString().split('T')[0] : '',
-      status: ordem.status,
-      totalValue: ordem.totalValue || 0,
-      // MUDANÇA: Converte a lógica de volta para o formulário
-      pecas: ordem.partsUsed.map(p => ({ id: p.partId, quantity: p.quantity })),
-      servicos: ordem.servicesPerformed.map(s => ({ id: s.serviceId })),
-    })
-    setDialogOpen(true)
+      await updateOrdemStatus(id, {
+        status: newStatus,
+        totalValue: newStatus === OrderStatus.FINISHED && ordemAtual ? calcularValorTotalDeOrdemExistente(ordemAtual) : null,
+        endDate: newStatus === OrderStatus.FINISHED ? new Date().toISOString() : undefined,
+      }); 
+      
+      toast.success('Status atualizado com sucesso!')
+      loadData()
+    } catch (error) {
+      console.error('Erro ao atualizar status:', error)
+      toast.error('Erro ao atualizar status')
+    }
   }
 
   const handleDelete = async (id: string) => {
@@ -174,56 +198,119 @@ export function Ordens() {
     }
   }
 
-  // MUDANÇA: 'handleStatusChange' atualizado
-  const handleStatusChange = async (id: string, newStatus: OrderStatus) => {
-    try {
-      const updateData: Partial<OrdemServico> = { status: newStatus }
-      if (newStatus === OrderStatus.FINISHED && !ordens.find(o => o.id === id)?.endDate) {
-        updateData.endDate = new Date().toISOString() // Envia data completa
-      }
-      
-      await updateOrdem(id, updateData)
-      toast.success('Status atualizado com sucesso!')
-      loadData()
-    } catch (error) {
-      console.error('Erro ao atualizar status:', error)
-      toast.error('Erro ao atualizar status')
-    }
-  }
-
-  // MUDANÇA: 'getClienteNome' usa 'name'
   const getClienteNome = (clienteId: string) => {
     const cliente = clientes.find(c => c.id === clienteId)
     return cliente?.name || 'Cliente não encontrado'
   }
 
-  // MUDANÇA: 'getVeiculo' usa 'brand', 'model', 'plate'
   const getVeiculo = (vehicleId: string) => {
     const veiculo = veiculos.find(v => v.id === vehicleId)
     return veiculo ? `${veiculo.brand} ${veiculo.model} - ${veiculo.plate}` : 'Veículo não encontrado'
   }
 
-  // MUDANÇA: 'getVeiculosByCliente' usa 'ownerId'
   const getVeiculosByCliente = (clienteId: string) => {
-    return veiculos.filter(v => v.ownerId === clienteId)
+    return veiculos.filter((v: any) => v.ownerId === clienteId) 
+  }
+  
+  const parseMoneyValue = (value: any): number => {
+    if (value === null || value === undefined) return 0
+    if (typeof value === 'number' && Number.isFinite(value)) return value
+    if (typeof value === 'string') {
+      const normalized = value
+        .replace(/[^0-9,.-]/g, '')
+        .replace(',', '.')
+      const parsed = parseFloat(normalized)
+      return Number.isFinite(parsed) ? parsed : 0
+    }
+    return 0
   }
 
-  // MUDANÇA: 'calcularValorTotal' usa 'price'
-  const calcularValorTotal = () => {
-    const valorServicos = formData.servicos.reduce((total, servicoForm) => {
-      const servico = servicos.find(s => s.id === servicoForm.id)
+  const parseQuantityValue = (value: any): number => {
+    if (value === null || value === undefined) return 0
+    if (typeof value === 'number' && Number.isFinite(value)) return value
+    if (typeof value === 'string') {
+      const parsed = parseFloat(value)
+      return Number.isFinite(parsed) ? parsed : 0
+    }
+    return 0
+  }
+
+  const getServicePriceFromRelation = (item: any): number => {
+    if (!item) return 0
+    return parseMoneyValue(
+      item.service?.price ??
+      item.price ??
+      item.valor ??
+      item.value ??
+      item.amount ??
+      item.total
+    )
+  }
+
+  const getPartPriceFromRelation = (item: any): number => {
+    if (!item) return 0
+    return parseMoneyValue(
+      item.part?.price ??
+      item.price ??
+      item.valor ??
+      item.value ??
+      item.amount ??
+      item.total
+    )
+  }
+
+  const calcularValorTotalDeOrdemExistente = (ordem: OrdemServico): number => {
+    if (!ordem) return 0
+
+    const servicesTotal = (ordem.servicesPerformed || []).reduce((acc, curr) => {
+      return acc + getServicePriceFromRelation(curr)
+    }, 0)
+
+    const partsTotal = (ordem.partsUsed || []).reduce((acc, curr) => {
+      const rawQuantity = curr.quantity ?? (curr as any)?.qtd ?? (curr as any)?.qtdUtilizada ?? 1
+      const quantity = parseQuantityValue(rawQuantity) || 0
+      return acc + getPartPriceFromRelation(curr) * (quantity || 0)
+    }, 0)
+
+    const total = servicesTotal + partsTotal
+    return Number.isFinite(total) ? Number(total) : 0
+  }
+
+  const getOrdemTotalValue = (ordem: OrdemServico): number => {
+    const existing = ordem?.totalValue
+    if (typeof existing === 'number' && Number.isFinite(existing)) {
+      return existing
+    }
+    return calcularValorTotalDeOrdemExistente(ordem)
+  }
+
+  const calcularValorTotal = (
+    pecasOverride?: { id: string, quantity: number }[] | null,
+    servicosOverride?: string[] | null
+  ) => {
+    const servicosSelecionados = servicosOverride !== undefined && servicosOverride !== null
+      ? servicosOverride
+      : formData.servicosSelecionados
+
+    const valorServicos = servicosSelecionados.reduce((total, servicoId) => {
+      const servico = servicos.find(s => s.id === servicoId)
       return total + (servico?.price || 0)
     }, 0)
 
-    const valorPecas = formData.pecas.reduce((total, pecaForm) => {
+    const pecasParaCalcular = pecasOverride !== undefined
+      ? (pecasOverride ?? [])
+      : formData.pecasSelecionadas
+
+    const valorPecas = pecasParaCalcular.reduce((total, pecaForm) => {
       const peca = pecas.find(p => p.id === pecaForm.id)
-      return total + (peca?.price || 0) * pecaForm.quantity
+      const preco = peca?.price || 0
+      return total + preco * (pecaForm.quantity || 0)
     }, 0)
 
-    return valorServicos + valorPecas
+    const total = valorServicos + valorPecas
+    return Number.isFinite(total) ? Number(total.toFixed(2)) : 0
   }
 
-  // MUDANÇA: 'filteredOrdens' usa 'number' e 'description'
   const filteredOrdens = ordens.filter(ordem => {
     const matchesSearch = (
       ordem.number.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -245,17 +332,12 @@ export function Ordens() {
     }).format(value)
   }
 
-  // MUDANÇA: Funções de status usam o Enum
   const getStatusIcon = (status: OrderStatus) => {
     switch (status) {
-      case OrderStatus.OPEN:
-        return <AlertCircle className="h-4 w-4" />
-      case OrderStatus.IN_PROGRESS:
-        return <Clock className="h-4 w-4" />
-      case OrderStatus.FINISHED:
-        return <CheckCircle className="h-4 w-4" />
-      default:
-        return <FileText className="h-4 w-4" />
+      case OrderStatus.OPEN: return <AlertCircle className="h-4 w-4" />;
+      case OrderStatus.IN_PROGRESS: return <Clock className="h-4 w-4" />;
+      case OrderStatus.FINISHED: return <CheckCircle className="h-4 w-4" />;
+      default: return <FileText className="h-4 w-4" />;
     }
   }
   
@@ -271,44 +353,60 @@ export function Ordens() {
 
   const getStatusColor = (status: OrderStatus) => {
     switch (status) {
-      case OrderStatus.OPEN:
-        return 'bg-orange-100 text-orange-800 border-orange-200'
-      case OrderStatus.IN_PROGRESS:
-        return 'bg-blue-100 text-blue-800 border-blue-200'
-      case OrderStatus.FINISHED:
-        return 'bg-green-100 text-green-800 border-green-200'
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-200'
+      case OrderStatus.OPEN: return 'bg-orange-100 text-orange-800 border-orange-200';
+      case OrderStatus.IN_PROGRESS: return 'bg-blue-100 text-blue-800 border-blue-200';
+      case OrderStatus.FINISHED: return 'bg-green-100 text-green-800 border-green-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   }
   
-  // TODO: Esta é a lógica de seleção de peças/serviços que precisa ser revisada.
-  // Por enquanto, apenas traduzimos os nomes.
-  
-  const handlePecaChange = (pecaId: string, checked: boolean) => {
+  const handlePecaChange = (pecaId: string, checked: boolean, currentQuantity: number = 1) => {
      setFormData(prev => {
        const pecas = checked
-         ? [...prev.pecas, { id: pecaId, quantity: 1 }] // Adiciona com quantidade 1
-         : prev.pecas.filter(p => p.id !== pecaId);
-       return { ...prev, pecas };
-     });
+         ? [...prev.pecasSelecionadas, { id: pecaId, quantity: currentQuantity }]
+         : prev.pecasSelecionadas.filter(p => p.id !== pecaId)
+       const totalAtualizado = calcularValorTotal(pecas, prev.servicosSelecionados)
+       return { ...prev, pecasSelecionadas: pecas, totalValue: totalAtualizado }
+     })
+  };
+
+  const handlePecaQuantityChange = (pecaId: string, newQuantity: number) => {
+     setFormData(prev => {
+       const pecas = prev.pecasSelecionadas.map(p =>
+         p.id === pecaId ? { ...p, quantity: newQuantity } : p
+       )
+       const totalAtualizado = calcularValorTotal(pecas, prev.servicosSelecionados)
+       return { ...prev, pecasSelecionadas: pecas, totalValue: totalAtualizado }
+     })
   };
 
   const handleServicoChange = (servicoId: string, checked: boolean) => {
      setFormData(prev => {
-       const servicos = checked
-         ? [...prev.servicos, { id: servicoId }]
-         : prev.servicos.filter(s => s.id !== servicoId);
-       return { ...prev, servicos };
-     });
+       const servicosSelecionados = checked
+         ? [...prev.servicosSelecionados, servicoId]
+         : prev.servicosSelecionados.filter(s => s !== servicoId)
+       const totalAtualizado = calcularValorTotal(prev.pecasSelecionadas, servicosSelecionados)
+       return { ...prev, servicosSelecionados, totalValue: totalAtualizado }
+     })
   };
-
+  
+  const getPecaQuantity = (pecaId: string) => {
+    return formData.pecasSelecionadas.find(p => p.id === pecaId)?.quantity || 1;
+  };
+  
+  const isPecaSelected = (pecaId: string) => {
+    return formData.pecasSelecionadas.some(p => p.id === pecaId);
+  };
+  
+  const isServicoSelected = (servicoId: string) => {
+    return formData.servicosSelecionados.some(s => s === servicoId);
+  };
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1>Ordens de Serviço</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Ordens de Serviço</h1>
           <p className="text-gray-600">Gerencie as ordens de serviço da oficina</p>
         </div>
         
@@ -334,13 +432,13 @@ export function Ordens() {
                     onValueChange={(value) => {
                       setFormData({ ...formData, clientId: value, vehicleId: '' })
                     }}
+                    disabled={!!editingOrdem} 
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione um cliente" />
                     </SelectTrigger>
                     <SelectContent>
                       {clientes.map((cliente) => (
-                        // MUDANÇA: usa cliente.name
                         <SelectItem key={cliente.id} value={cliente.id!}>
                           {cliente.name}
                         </SelectItem>
@@ -354,13 +452,12 @@ export function Ordens() {
                   <Select 
                     value={formData.vehicleId} 
                     onValueChange={(value) => setFormData({ ...formData, vehicleId: value })}
-                    disabled={!formData.clientId}
+                    disabled={!formData.clientId || !!editingOrdem} 
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione um veículo" />
                     </SelectTrigger>
                     <SelectContent>
-                      {/* MUDANÇA: usa veiculo.brand, model, plate */}
                       {getVeiculosByCliente(formData.clientId).map((veiculo) => (
                         <SelectItem key={veiculo.id} value={veiculo.id!}>
                           {veiculo.brand} {veiculo.model} - {veiculo.plate}
@@ -371,23 +468,21 @@ export function Ordens() {
                 </div>
               </div>
 
-              {/* MUDANÇA: usa 'description' */}
-              <div>
-                <Label htmlFor="description">Descrição do Problema</Label>
-                <Textarea
-                  id="description"
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  required
-                  placeholder="Descreva o problema ou serviço solicitado..."
-                  rows={3}
-                />
-              </div>
-
               <div className="grid grid-cols-2 gap-4">
                 <div>
+                  <Label htmlFor="description">Descrição do Problema</Label>
+                  <Textarea
+                    id="description"
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    required
+                    placeholder="Descreva o problema..."
+                    rows={3}
+                  />
+                </div>
+                
+                <div>
                   <Label htmlFor="status">Status</Label>
-                  {/* MUDANÇA: usa Enums */}
                   <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value as OrderStatus })}>
                     <SelectTrigger>
                       <SelectValue />
@@ -400,8 +495,9 @@ export function Ordens() {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
 
-                {/* MUDANÇA: usa 'startDate' */}
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="startDate">Data de Início</Label>
                   <Input
@@ -412,10 +508,7 @@ export function Ordens() {
                     required
                   />
                 </div>
-              </div>
 
-              {/* MUDANÇA: usa 'endDate' */}
-              {formData.status === OrderStatus.FINISHED && (
                 <div>
                   <Label htmlFor="endDate">Data de Conclusão</Label>
                   <Input
@@ -423,74 +516,11 @@ export function Ordens() {
                     type="date"
                     value={formData.endDate || ''}
                     onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                    disabled={formData.status !== OrderStatus.FINISHED}
                   />
                 </div>
-              )}
-
-              {/* MUDANÇA: Lógica de Peças/Serviços atualizada */}
-              <div>
-                <Label>Serviços</Label>
-                <div className="border rounded-lg p-4 max-h-32 overflow-y-auto">
-                  {servicos.length === 0 ? (
-                    <p className="text-sm text-gray-500">Nenhum serviço cadastrado</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {servicos.map((servico) => (
-                        <div key={servico.id} className="flex items-center space-x-2">
-                          <Checkbox
-                            checked={formData.servicos.some(s => s.id === servico.id!)}
-                            onCheckedChange={(checked) => handleServicoChange(servico.id!, !!checked)}
-                          />
-                          <label className="text-sm flex-1">
-                            {servico.name} - {formatCurrency(servico.price)}
-                          </label>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
               </div>
-
-              <div>
-                <Label>Peças</Label>
-                <div className="border rounded-lg p-4 max-h-32 overflow-y-auto">
-                  {pecas.length === 0 ? (
-                    <p className="text-sm text-gray-500">Nenhuma peça cadastrada</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {pecas.map((peca) => (
-                        <div key={peca.id} className="flex items-center space-x-2">
-                          <Checkbox
-                            checked={formData.pecas.some(p => p.id === peca.id!)}
-                            onCheckedChange={(checked) => handlePecaChange(peca.id!, !!checked)}
-                          />
-                          <label className="text-sm flex-1">
-                            {peca.name} - {formatCurrency(peca.price)}
-                          </label>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* MUDANÇA: usa 'totalValue' */}
-              <div>
-                <Label htmlFor="totalValue">Valor Total</Label>
-                <Input
-                  id="totalValue"
-                  type="number"
-                  step="0.01"
-                  value={formData.totalValue || calcularValorTotal()}
-                  onChange={(e) => setFormData({ ...formData, totalValue: parseFloat(e.target.value) || 0 })}
-                  placeholder="0.00"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Valor calculado automaticamente: {formatCurrency(calcularValorTotal())}
-                </p>
-              </div>
-
-              {/* MUDANÇA: usa 'observations' */}
+              
               <div>
                 <Label htmlFor="observations">Observações</Label>
                 <Textarea
@@ -501,10 +531,97 @@ export function Ordens() {
                   rows={3}
                 />
               </div>
-              
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Settings className="h-5 w-5" />
+                    Itens da Ordem
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Serviços ({formatCurrency(calcularValorTotal() - calcularValorTotal(formData.pecasSelecionadas))})</Label>
+                    <div className="border rounded-lg p-3 max-h-40 overflow-y-auto space-y-2">
+                      {servicos.length === 0 ? (
+                        <p className="text-sm text-gray-500">Nenhum serviço cadastrado</p>
+                      ) : (
+                        servicos.map((servico) => (
+                          <div key={servico.id} className="flex items-center justify-between space-x-2">
+                            <div className="flex items-center space-x-2">
+                                <Checkbox
+                                    checked={isServicoSelected(servico.id!)}
+                                    onCheckedChange={(checked) => handleServicoChange(servico.id!, !!checked)}
+                                    disabled={!!editingOrdem} 
+                                />
+                                <label className="text-sm flex-1">{servico.name}</label>
+                            </div>
+                            <span className="text-xs text-gray-500">{formatCurrency(servico.price)}</span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label>Peças ({formatCurrency(calcularValorTotal(formData.pecasSelecionadas))})</Label>
+                    <div className="border rounded-lg p-3 max-h-40 overflow-y-auto space-y-2">
+                      {pecas.length === 0 ? (
+                        <p className="text-sm text-gray-500">Nenhuma peça cadastrada</p>
+                      ) : (
+                        pecas.map((peca) => {
+                          const isChecked = isPecaSelected(peca.id!);
+                          const quantity = getPecaQuantity(peca.id!);
+                          
+                          return (
+                            <div key={peca.id} className="flex items-center justify-between space-x-2">
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                    checked={isChecked}
+                                    onCheckedChange={(checked) => handlePecaChange(peca.id!, !!checked)}
+                                    disabled={!!editingOrdem} 
+                                />
+                                <label className="text-sm flex-1">{peca.name}</label>
+                              </div>
+                              {isChecked && (
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  value={quantity}
+                                  onChange={(e) => {
+                                    const newQuantity = Math.max(1, parseInt(e.target.value) || 1);
+                                    handlePecaQuantityChange(peca.id!, newQuantity);
+                                  }}
+                                  className="w-16 h-8 text-right text-xs"
+                                  disabled={!!editingOrdem} 
+                                />
+                              )}
+                              {!isChecked && <span className="text-xs text-gray-500">{formatCurrency(peca.price)}</span>}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                  
+                </CardContent>
+              </Card>
+
+              <div>
+                <Label htmlFor="totalValue">Valor Total Final (R$)</Label>
+                <Input
+                  id="totalValue"
+                  type="number"
+                  step="0.01"
+                  value={formData.totalValue ?? calcularValorTotal()}
+                  onChange={(e) => setFormData({ ...formData, totalValue: parseFloat(e.target.value) || 0 })}
+                  placeholder="0.00"
+                />
+              </div>
+
               <div className="flex gap-3 pt-4">
                 <Button type="submit" disabled={loading} className="flex-1">
-                  {loading ? 'Salvando...' : (editingOrdem ? 'Atualizar' : 'Criar')}
+                  {loading ? 'Salvando...' : (editingOrdem ? 'Atualizar Ordem' : 'Criar')}
                 </Button>
                 <Button 
                   type="button" 
@@ -520,29 +637,27 @@ export function Ordens() {
         </Dialog>
       </div>
 
-      {/* Filtros */}
       <Card>
         <CardContent className="pt-6">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
               <Input
-                placeholder="Buscar por número, cliente, veículo ou descrição..."
+                placeholder="Buscar..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
             <div className="w-full sm:w-48">
-              {/* MUDANÇA: usa Enums */}
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os Status</SelectItem>
-                  <SelectItem value={OrderStatus.OPEN}>Abertas</SelectItem>
+                  <SelectItem value={OrderStatus.OPEN}>Aberta</SelectItem>
                   <SelectItem value={OrderStatus.IN_PROGRESS}>Em Andamento</SelectItem>
-                  <SelectItem value={OrderStatus.FINISHED}>Concluídas</SelectItem>
-                  <SelectItem value={OrderStatus.CANCELED}>Canceladas</SelectItem>
+                  <SelectItem value={OrderStatus.FINISHED}>Concluída</SelectItem>
+                  <SelectItem value={OrderStatus.CANCELED}>Cancelada</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -550,7 +665,6 @@ export function Ordens() {
         </CardContent>
       </Card>
 
-      {/* Lista de Ordens */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -560,11 +674,7 @@ export function Ordens() {
         </CardHeader>
         <CardContent>
           {filteredOrdens.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              {searchTerm || statusFilter !== 'all' 
-                ? 'Nenhuma ordem encontrada com os filtros aplicados.' 
-                : 'Nenhuma ordem de serviço cadastrada ainda.'}
-            </div>
+            <div className="text-center py-8 text-gray-500">Nenhuma ordem encontrada.</div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
@@ -587,11 +697,8 @@ export function Ordens() {
                             <FileText className="h-4 w-4 text-blue-600" />
                           </div>
                           <div>
-                            {/* MUDANÇA: usa 'number' e 'description' */}
                             <div>{ordem.number}</div>
-                            <div className="text-sm text-gray-500 truncate max-w-xs">
-                              {ordem.description}
-                            </div>
+                            <div className="text-sm text-gray-500 truncate max-w-xs">{ordem.description}</div>
                           </div>
                         </div>
                       </TableCell>
@@ -613,32 +720,16 @@ export function Ordens() {
                             {getStatusIcon(ordem.status)}
                             {getStatusText(ordem.status)}
                           </Badge>
-                          {/* MUDANÇA: usa Enums */}
-                          <Select 
-                            value={ordem.status} 
-                            onValueChange={(value) => handleStatusChange(ordem.id!, value as OrderStatus)}
-                          >
-                            <SelectTrigger className="w-32 h-8">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value={OrderStatus.OPEN}>Aberta</SelectItem>
-                              <SelectItem value={OrderStatus.IN_PROGRESS}>Em Andamento</SelectItem>
-                              <SelectItem value={OrderStatus.FINISHED}>Concluída</SelectItem>
-                            </SelectContent>
-                          </Select>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
                           <DollarSign className="h-3 w-3" />
-                          {/* MUDANÇA: usa 'totalValue' */}
                           {formatCurrency(ordem.totalValue)}
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="text-sm space-y-1">
-                          {/* MUDANÇA: usa 'startDate' e 'endDate' */}
                           <div>Início: {new Date(ordem.startDate).toLocaleDateString('pt-BR')}</div>
                           {ordem.endDate && (
                             <div>Fim: {new Date(ordem.endDate).toLocaleDateString('pt-BR')}</div>
@@ -647,11 +738,7 @@ export function Ordens() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex gap-2 justify-end">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEdit(ordem)}
-                          >
+                          <Button variant="outline" size="sm" onClick={() => handleEdit(ordem)}>
                             <Edit className="h-4 w-4" />
                           </Button>
                           <AlertDialog>
@@ -664,19 +751,12 @@ export function Ordens() {
                               <AlertDialogHeader>
                                 <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  {/* MUDANÇA: usa 'number' */}
-                                  Tem certeza que deseja excluir a ordem de serviço "{ordem.number}"? 
-                                  Esta ação não pode ser desfeita.
+                                  Tem certeza que deseja excluir a ordem "{ordem.number}"?
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
                                 <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => handleDelete(ordem.id!)}
-                                  className="bg-red-600 hover:bg-red-700"
-                                >
-                                  Excluir
-                                </AlertDialogAction>
+                                <AlertDialogAction onClick={() => handleDelete(ordem.id!)} className="bg-red-600 hover:bg-red-700">Excluir</AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>

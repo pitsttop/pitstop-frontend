@@ -99,9 +99,21 @@ export function Servicos() {
       await deleteServico(id)
       toast.success('Serviço excluído com sucesso!')
       loadServicos()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao excluir serviço:', error)
-      toast.error('Erro ao excluir serviço')
+      
+      // TENTATIVA 1: O 'useApi' já extraiu a mensagem para error.message?
+      if (error.message) {
+          toast.error(error.message);
+      } 
+      // TENTATIVA 2: O erro é apenas uma string?
+      else if (typeof error === 'string') {
+          toast.error(error);
+      }
+      // FALLBACK: Se não for nada disso, usa a mensagem padrão
+      else {
+          toast.error('Erro ao excluir serviço');
+      }
     }
   }
 

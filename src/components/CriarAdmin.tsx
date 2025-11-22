@@ -8,12 +8,13 @@ import { AlertCircle, Shield, Plus, Check } from 'lucide-react'
 import { Alert, AlertDescription } from './ui/alert'
 
 export function CriarAdmin() {
-  const { createAdmin, loading } = useAuth()
+  const { createAdmin, loading } = useAuth() // Agora createAdmin existe no useAuth!
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false) // Estado local para loading do botão
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -34,8 +35,14 @@ export function CriarAdmin() {
       setError('Senha deve ter pelo menos 6 caracteres')
       return
     }
+
+    setIsSubmitting(true)
     
+    // Chama a função do hook que conecta na API
     const result = await createAdmin(email, password, name)
+    
+    setIsSubmitting(false)
+
     if (result.error) {
       setError(result.error)
     } else {
@@ -47,30 +54,30 @@ export function CriarAdmin() {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-6 max-w-4xl mx-auto">
       <div className="mb-6">
-        <h2 className="flex items-center gap-2">
-          <Shield className="h-6 w-6" />
+        <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+          <Shield className="h-8 w-8 text-blue-600" />
           Criar Novo Administrador
         </h2>
         <p className="text-gray-600 mt-1">
-          Crie uma nova conta de administrador para gerenciar o sistema
+          Adicione um novo membro à equipe com permissões de gerenciamento.
         </p>
       </div>
 
-      <Card className="max-w-md">
+      <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Plus className="h-5 w-5" />
-            Nova Conta Admin
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Plus className="h-5 w-5 text-gray-500" />
+            Dados da Conta
           </CardTitle>
           <CardDescription>
-            Preencha os dados para criar um novo administrador
+            O novo administrador terá acesso total ao painel de controle.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
+          <form onSubmit={handleSubmit} className="space-y-4 max-w-md">
+            <div className="space-y-2">
               <Label htmlFor="admin-name">Nome Completo</Label>
               <Input
                 id="admin-name"
@@ -78,23 +85,23 @@ export function CriarAdmin() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                placeholder="Nome do administrador"
+                placeholder="Ex: Maria Silva"
               />
             </div>
             
-            <div>
-              <Label htmlFor="admin-email">Email</Label>
+            <div className="space-y-2">
+              <Label htmlFor="admin-email">Email de Acesso</Label>
               <Input
                 id="admin-email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                placeholder="email@exemplo.com"
+                placeholder="admin@pitstop.com"
               />
             </div>
             
-            <div>
+            <div className="space-y-2">
               <Label htmlFor="admin-password">Senha</Label>
               <Input
                 id="admin-password"
@@ -105,27 +112,27 @@ export function CriarAdmin() {
                 placeholder="********"
                 minLength={6}
               />
-              <p className="text-sm text-gray-500 mt-1">
-                Mínimo de 6 caracteres
+              <p className="text-xs text-gray-500">
+                Mínimo de 6 caracteres.
               </p>
             </div>
             
             {error && (
-              <Alert variant="destructive">
+              <Alert variant="destructive" className="bg-red-50 border-red-200 text-red-800">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
             
             {success && (
-              <Alert>
+              <Alert className="bg-green-50 border-green-200 text-green-800">
                 <Check className="h-4 w-4" />
                 <AlertDescription>{success}</AlertDescription>
               </Alert>
             )}
             
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Criando...' : 'Criar Administrador'}
+            <Button type="submit" className="w-full" disabled={loading || isSubmitting}>
+              {isSubmitting ? 'Criando...' : 'Criar Administrador'}
             </Button>
           </form>
         </CardContent>

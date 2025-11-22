@@ -1,17 +1,113 @@
+import { useEffect, useMemo, useState } from 'react'
+import { type ReactNode } from 'react'
 import { useAuth } from '../hooks/useAuth'
-import { useEffect, useState } from 'react'
-import api from '../services/api'
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
-import { Button } from './ui/button'
-import { 
-  Calendar, 
-  Calculator, 
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
+import { Button } from '../components/ui/button'
+import {
+  Calendar,
   Eye,
   User,
   Clock,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  CalendarClock,
 } from 'lucide-react'
+
+interface ServiceStatusOption {
+  matcher: (status: string) => boolean
+  label: string
+  icon: () => ReactNode
+}
+
+interface PreparedServiceItem {
+  id: string
+  statusLabel: string
+  statusRaw: string
+  statusIcon: ReactNode
+  createdAt: Date
+  vehicleLabel: string
+  serviceName?: string
+  scheduledFor?: Date | null
+  note?: string
+  actions?: {
+    label: string
+    onClick?: () => void
+  }[]
+}
+
+const APPOINTMENTS_STORAGE_KEY = 'pitstop:clientAppointments'
+
+const SERVICE_STATUS_OPTIONS: ServiceStatusOption[] = [
+  {
+    matcher: (status) => status.includes('scheduled') || status.includes('agend'),
+    label: 'Agendado',
+    icon: () => <Calendar className="h-4 w-4 text-blue-600" />,
+  },
+  {
+    matcher: (status) => status.includes('finished') || status.includes('concluída') || status.includes('concluido'),
+    label: 'Concluído',
+    icon: () => <CheckCircle className="h-4 w-4 text-green-600" />,
+  },
+  {
+    matcher: (status) => status.includes('progress') || status.includes('andamento'),
+    label: 'Em Andamento',
+    icon: () => <Clock className="h-4 w-4 text-yellow-600" />,
+  },
+  {
+    matcher: () => true,
+    label: 'Aguardando',
+    icon: () => <AlertCircle className="h-4 w-4 text-gray-600" />,
+  },
+]
+
+const parseDate = (value: unknown): Date | null => {
+  if (!value) return null
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value
+  const parsed = new Date(value as any)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+const buildVehicleLabel = (raw: any): string => {
+  if (!raw || typeof raw !== 'object') return 'Veículo'
+  const brand = raw.brand ?? raw.marca ?? raw.make ?? ''
+  const model = raw.model ?? raw.modelo ?? raw.nome ?? ''
+  const plate = raw.plate ?? raw.placa ?? ''
+  return [brand || model ? `${brand} ${model}`.trim() : 'Veículo', plate ? `(${plate})` : ''].join(' ').trim()
+}
+
+const normalizeSchedule = (raw: any): PreparedServiceItem | null => {
+  if (!raw) return null
+
+  const id = raw.id ?? raw.agendamentoId ?? raw.bookingId ?? raw.numero ?? raw.uuid ?? raw._id
+  if (!id) return null
+
+  const statusRaw = (raw.status?.name ?? raw.status ?? raw.situacao ?? raw.state ?? '').toString()
+  const statusNormalized = statusRaw.toLowerCase()
+
+  const statusOption = SERVICE_STATUS_OPTIONS.find((option) => option.matcher(statusNormalized)) ?? SERVICE_STATUS_OPTIONS[SERVICE_STATUS_OPTIONS.length - 1]
+
+  const createdAtDate = parseDate(
+    raw.createdAt ?? raw.dataAgendamento ?? raw.startDate ?? raw.data ?? raw.agendadoPara ?? raw.start_at,
+  ) ?? new Date()
+
+  const scheduledDate = parseDate(
+    raw.scheduledFor ?? raw.scheduledAt ?? raw.dataMarcada ?? raw.dataAgendada ?? raw.dataAgendamento ?? raw.startDate,
+  )
+
+  const vehicleLabel = buildVehicleLabel(raw.vehicle ?? raw.veiculo ?? raw.vehicleInfo ?? raw.car)
+  const serviceName = raw.service?.name ?? raw.serviceName ?? raw.servico ?? raw.description ?? raw.title
+
+  return {
+    id: String(id),
+    statusLabel: statusOption.label,
+    statusRaw,
+    statusIcon: statusOption.icon(),
+    createdAt: createdAtDate,
+    vehicleLabel,
+    serviceName: serviceName ? String(serviceName) : undefined,
+    scheduledFor: scheduledDate,
+  }
+}
 
 interface ClienteDashboardProps {
   onTabChange: (tab: string) => void
@@ -38,85 +134,85 @@ export function ClienteDashboard({ onTabChange }: ClienteDashboardProps) {
     }
   ]
 
-  const recentServices = [
-    {
-      id: 1,
-      numero: 'OS-2024001',
-      veiculo: 'Civic 2020',
-      servico: 'Troca de óleo',
-      status: 'concluida',
-      data: '2024-01-15'
-    },
-    {
-      id: 2,
-      numero: 'OS-2024002',
-      veiculo: 'Civic 2020',
-      servico: 'Revisão dos freios',
-      status: 'andamento',
-      data: '2024-01-20'
-    }
-  ]
+  const [scheduleItems, setScheduleItems] = useState<PreparedServiceItem[]>([])
+  const [loadingSchedules, setLoadingSchedules] = useState(false)
 
-  const [services, setServices] = useState<any[]>([])
-  const [loadingServices, setLoadingServices] = useState(false)
+  const recentSchedules = useMemo(() => scheduleItems.slice(0, 5), [scheduleItems])
+
+  const formatDateTime = (date?: Date | null) => {
+    if (!date) return null
+    return date.toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
 
   useEffect(() => {
-    const fetchServices = async () => {
-      if (!user) return
-      setLoadingServices(true)
-      // try a few endpoints to fetch services for this user
-      try {
-        const r1 = await api.get('/me/services')
-        setServices(r1.data || [])
-        setLoadingServices(false)
-        return
-      } catch (e) {}
+    const rawUserId = user?.id ?? user?.userId ?? user?.clientId ?? user?.clienteId
 
-      try {
-        const r2 = await api.get(`/users/${user.id}/services`)
-        setServices(r2.data || [])
-        setLoadingServices(false)
-        return
-      } catch (e) {}
+    if (!user || !rawUserId) {
+      setScheduleItems([])
+      setLoadingSchedules(false)
+      return
+    }
 
+    const currentUserId = String(rawUserId)
+
+    const loadSchedulesFromStorage = () => {
+      setLoadingSchedules(true)
       try {
-        const r3 = await api.get(`/services?userId=${user.id || user.userId}`)
-        setServices(r3.data || [])
-        setLoadingServices(false)
-        return
-      } catch (e) {
-        console.warn('ClienteDashboard: não foi possível carregar serviços recentes', e)
+        const raw = localStorage.getItem(APPOINTMENTS_STORAGE_KEY)
+        if (!raw) {
+          setScheduleItems([])
+          return
+        }
+
+        let parsed: any[] = []
+        try {
+          const data = JSON.parse(raw)
+          parsed = Array.isArray(data) ? data : []
+        } catch (error) {
+          console.error('[ClienteDashboard] Não foi possível interpretar os agendamentos salvos.', error)
+        }
+
+        const filtered = parsed.filter((item) => {
+          if (!item) return false
+          const candidateId = item.userId ?? item.clientId ?? item.clienteId
+          return candidateId ? String(candidateId) === currentUserId : false
+        })
+
+        const normalized = filtered
+          .map(normalizeSchedule)
+          .filter((item): item is PreparedServiceItem => Boolean(item))
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+
+        setScheduleItems(normalized)
+      } finally {
+        setLoadingSchedules(false)
       }
-
-      setLoadingServices(false)
     }
 
-    fetchServices()
+    loadSchedulesFromStorage()
+
+    const handleCustomUpdate = () => loadSchedulesFromStorage()
+    const handleStorageEvent = (event: StorageEvent) => {
+      if (event.key && event.key !== APPOINTMENTS_STORAGE_KEY) {
+        return
+      }
+      loadSchedulesFromStorage()
+    }
+
+    window.addEventListener('pitstop:appointments-updated', handleCustomUpdate)
+    window.addEventListener('storage', handleStorageEvent)
+
+    return () => {
+      window.removeEventListener('pitstop:appointments-updated', handleCustomUpdate)
+      window.removeEventListener('storage', handleStorageEvent)
+    }
   }, [user])
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'concluida':
-        return <CheckCircle className="h-4 w-4 text-green-600" />
-      case 'andamento':
-        return <Clock className="h-4 w-4 text-yellow-600" />
-      default:
-        return <AlertCircle className="h-4 w-4 text-gray-600" />
-    }
-  }
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'concluida':
-        return 'Concluída'
-      case 'andamento':
-        return 'Em Andamento'
-      case 'aberta':
-        return 'Aguardando'
-      default:
-        return 'Desconhecido'
-    }
-  }
 
   return (
     <div className="p-6 space-y-6">
@@ -149,7 +245,7 @@ export function ClienteDashboard({ onTabChange }: ClienteDashboardProps) {
 
       {/* Quick Actions */}
       <div>
-        <h2 className="mb-4">Ações Rápidas</h2>
+        <h2 className="mb-4 text-xl font-semibold">Ações Rápidas</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {quickActions.map((action) => {
             const Icon = action.icon
@@ -159,7 +255,7 @@ export function ClienteDashboard({ onTabChange }: ClienteDashboardProps) {
                   <div className={`bg-gradient-to-r ${action.color} p-3 rounded-lg w-fit mb-4`}>
                     <Icon className="h-6 w-6 text-white" />
                   </div>
-                  <h3 className="mb-2">{action.title}</h3>
+                  <h3 className="mb-2 font-medium">{action.title}</h3>
                   <p className="text-gray-600 text-sm mb-4">{action.description}</p>
                   <Button variant="outline" size="sm" className="w-full">
                     Acessar
@@ -171,10 +267,10 @@ export function ClienteDashboard({ onTabChange }: ClienteDashboardProps) {
         </div>
       </div>
 
-      {/* Recent Services */}
+      {/* Recent Appointments */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h2>Serviços Recentes</h2>
+          <h2 className="text-xl font-semibold">Agendamentos Recentes</h2>
           <Button variant="outline" size="sm" onClick={() => onTabChange('acompanhamento')}>
             Ver Todos
           </Button>
@@ -182,25 +278,41 @@ export function ClienteDashboard({ onTabChange }: ClienteDashboardProps) {
         
         <Card>
           <CardHeader>
-            <CardTitle>Últimos Serviços</CardTitle>
+            <CardTitle>Últimos Agendamentos</CardTitle>
           </CardHeader>
           <CardContent>
-            {loadingServices ? (
-              <div className="text-center py-8 text-gray-500">Carregando serviços...</div>
-            ) : services.length > 0 ? (
+            {loadingSchedules ? (
+              <div className="text-center py-8 text-gray-500 flex flex-col items-center">
+                <Clock className="h-8 w-8 animate-spin text-blue-500 mb-2"/>
+                Carregando agendamentos...
+              </div>
+            ) : recentSchedules.length > 0 ? (
               <div className="space-y-4">
-                {services.map((service: any) => (
-                  <div key={service.id || service.numero} className="flex items-center justify-between p-4 border rounded-lg">
+                {recentSchedules.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
                     <div className="flex items-center space-x-4">
-                      {getStatusIcon(service.status)}
+                      <span className="flex items-center justify-center h-8 w-8 rounded-full bg-gray-100">
+                        {item.statusIcon}
+                      </span>
                       <div>
-                        <div className="font-medium">{service.numero || service.orderNumber || service.id}</div>
-                        <div className="text-sm text-gray-600">{service.veiculo || service.vehicle || service.carModel} - {service.servico || service.service || service.description}</div>
+                        <div className="font-medium">
+                          {item.serviceName || 'Serviço agendado'}
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          {item.vehicleLabel}
+                        </div>
+                        <div className="flex items-center text-xs text-gray-500 mt-1 space-x-1">
+                          <CalendarClock className="h-3 w-3" />
+                          <span>
+                            {formatDateTime(item.scheduledFor ?? item.createdAt)}
+                          </span>
+                        </div>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-sm font-medium">{getStatusText(service.status)}</div>
-                      <div className="text-xs text-gray-500">{service.data || service.date || service.createdAt}</div>
+                      <div className="text-sm font-medium">
+                        {item.statusLabel}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -208,8 +320,8 @@ export function ClienteDashboard({ onTabChange }: ClienteDashboardProps) {
             ) : (
               <div className="text-center py-8 text-gray-500">
                 <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                <p>Nenhum serviço encontrado</p>
-                <p className="text-sm">Agende seu primeiro serviço!</p>
+                <p>Nenhum agendamento encontrado</p>
+                <p className="text-sm">Use o botão acima para agendar seu primeiro serviço.</p>
               </div>
             )}
           </CardContent>
@@ -224,7 +336,7 @@ export function ClienteDashboard({ onTabChange }: ClienteDashboardProps) {
               <AlertCircle className="h-5 w-5 text-blue-600" />
             </div>
             <div>
-              <h3 className="text-blue-900 mb-2">Dicas Importantes</h3>
+              <h3 className="text-blue-900 mb-2 font-medium">Dicas Importantes</h3>
               <ul className="text-blue-800 text-sm space-y-1">
                 <li>• Agende seus serviços com antecedência</li>
                 <li>• Use a calculadora para estimar custos</li>

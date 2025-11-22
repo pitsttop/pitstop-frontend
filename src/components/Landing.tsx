@@ -1,4 +1,5 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
+import api from '../services/api' // Importe sua API
 import {
   UserCircle,
   Tire,
@@ -6,7 +7,6 @@ import {
   CarBattery,
   Toolbox,
   Engine,
-  Cpu,
   CheckCircle,
   ShieldCheck,
   Wrench,
@@ -18,14 +18,50 @@ type LandingProps = {
   onAccess: () => void
 }
 
+// Interfaces para os dados do banco
+interface ServiceItem {
+  id: string
+  name: string
+  price: number
+}
+
+interface PartItem {
+  id: string
+  name: string
+  price: number
+}
+
 const currencyFormatter = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
   currency: 'BRL'
 })
 
 export function Landing({ onAccess }: LandingProps) {
+  // Estados para os valores selecionados
   const [servicePrice, setServicePrice] = React.useState(0)
   const [partsPrice, setPartsPrice] = React.useState(0)
+  
+  // Estados para as listas que vêm do banco
+  const [servicesList, setServicesList] = useState<ServiceItem[]>([])
+  const [partsList, setPartsList] = useState<PartItem[]>([])
+
+  // Busca dados ao carregar a página
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        // Busca simultânea para ser mais rápido
+        const [servicesRes, partsRes] = await Promise.all([
+          api.get('/servicos'),
+          api.get('/pecas')
+        ])
+        setServicesList(servicesRes.data)
+        setPartsList(partsRes.data)
+      } catch (error) {
+        console.error("Erro ao carregar dados da calculadora:", error)
+      }
+    }
+    fetchData()
+  }, [])
 
   const total = React.useMemo(() => currencyFormatter.format(servicePrice + partsPrice), [servicePrice, partsPrice])
 
@@ -88,7 +124,6 @@ export function Landing({ onAccess }: LandingProps) {
           height: auto;
         }
 
-        /* Footer logo styling (moved from header) */
         .footer-logo {
           height: 80px;
           width: auto;
@@ -421,8 +456,6 @@ export function Landing({ onAccess }: LandingProps) {
 
         footer p { font-size: 0.95rem; opacity: 0.9; margin: 0; }
 
-        
-
         @media (max-width: 992px) {
           .about { flex-direction: column; text-align: center; gap: 3rem; }
           .about-content { max-width: 100%; }
@@ -549,11 +582,12 @@ export function Landing({ onAccess }: LandingProps) {
                 onChange={event => setServicePrice(Number(event.target.value))}
               >
                 <option value={0}>Selecione...</option>
-                <option value={120}>Alinhamento e Balanceamento (R$ 120)</option>
-                <option value={80}>Troca de Óleo - Mão de Obra (R$ 80)</option>
-                <option value={150}>Diagnóstico Elétrico (R$ 150)</option>
-                <option value={200}>Manutenção de Freios (R$ 200)</option>
-                <option value={300}>Revisão Geral (R$ 300)</option>
+                {/* Preenchemos com os serviços do banco */}
+                {servicesList.map(service => (
+                  <option key={service.id} value={service.price}>
+                    {service.name} ({currencyFormatter.format(service.price)})
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -570,10 +604,12 @@ export function Landing({ onAccess }: LandingProps) {
                 onChange={event => setPartsPrice(Number(event.target.value))}
               >
                 <option value={0}>Nenhuma / Apenas Mão de Obra</option>
-                <option value={250}>Kit Óleo Sintético + Filtro (R$ 250)</option>
-                <option value={180}>Pastilhas de Freio (Par) (R$ 180)</option>
-                <option value={450}>Bateria 60Ah Premium (R$ 450)</option>
-                <option value={120}>Filtro de Ar e Combustível (R$ 120)</option>
+                {/* Preenchemos com as peças do banco */}
+                {partsList.map(part => (
+                  <option key={part.id} value={part.price}>
+                    {part.name} ({currencyFormatter.format(part.price)})
+                  </option>
+                ))}
               </select>
             </div>
           </div>

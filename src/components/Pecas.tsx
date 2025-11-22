@@ -99,11 +99,15 @@ export function Pecas() {
       await deletePeca(id)
       toast.success('Peça excluída com sucesso!')
       loadPecas()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao excluir peça:', error)
-      toast.error('Erro ao excluir peça')
+      
+      // ✅ AQUI ESTÁ O AJUSTE: Tenta usar a mensagem do erro (que vem do backend)
+      const mensagem = error.message || 'Erro ao excluir peça';
+      
+      toast.error(mensagem);
     }
-  }
+}
 
   // MUDANÇA: 'filteredPecas' atualizado (sem codigo, fornecedor)
   const filteredPecas = pecas.filter(peca =>
