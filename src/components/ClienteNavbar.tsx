@@ -47,6 +47,7 @@ function NavItems({ mobile = false, onTabChange, activeTab }: { mobile?: boolean
             className={`w-full justify-start ${mobile ? 'h-12' : ''} ${
               isActive ? 'bg-green-100 text-green-700 hover:bg-green-200' : ''
             }`}
+            data-testid={`client-nav-${item.id}`}
             onClick={() => onTabChange(item.id)}
           >
             <Icon className="mr-2 h-4 w-4" />

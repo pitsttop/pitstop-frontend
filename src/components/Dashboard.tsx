@@ -71,11 +71,10 @@ export function Dashboard() {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1>Dashboard</h1>
+  <h1 data-testid="admin-dashboard-title">Dashboard</h1>
         <p className="text-gray-600">Visão geral do seu negócio</p>
       </div>
 
-      {/* Aviso de Erro */}
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
           <p className="font-medium">⚠️ Erro ao carregar dados</p>
@@ -92,7 +91,6 @@ export function Dashboard() {
         </div>
       )}
 
-      {/* Cards de Estatísticas Principais */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -147,7 +145,6 @@ export function Dashboard() {
         </Card>
       </div>
 
-      {/* Cards de Status das Ordens */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -189,7 +186,6 @@ export function Dashboard() {
         </Card>
       </div>
 
-      {/* Cards de Inventário */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -218,7 +214,6 @@ export function Dashboard() {
         </Card>
       </div>
 
-      {/* Status Rápido */}
       <Card>
         <CardHeader>
           <CardTitle>Status das Operações</CardTitle>

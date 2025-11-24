@@ -2,14 +2,12 @@ import { createContext, useContext, ReactNode, useState, useEffect } from 'react
 import authApi from '../services/authApi'; 
 import api from '../services/api';
 
-// 1. Definição do Tipo do Contexto (incluindo createAdmin)
 type AuthContextType = {
   accessToken: string | null;
   user: any | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => void;
-  // A função nova que o componente CriarAdmin precisa:
   createAdmin: (email: string, password: string, name: string) => Promise<{ error?: string }>;
 };
 
@@ -20,11 +18,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Configura o Token nos headers (Tanto para API quanto para AuthApi)
   useEffect(() => {
     if (accessToken) {
       api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
-      // IMPORTANTE: O AuthApi também precisa do token para acessar a rota /admin
       authApi.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
       localStorage.setItem('accessToken', accessToken);
     } else {
@@ -33,7 +29,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [accessToken]); 
 
-  // Carga inicial ao dar F5
   useEffect(() => {
     const loadStorageData = async () => {
       const storedToken = localStorage.getItem('accessToken');
@@ -79,12 +74,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // 2. Implementação da função createAdmin
   const createAdmin = async (email: string, password: string, name: string) => {
     try {
-      // Chama a rota /auth/admin (que exige token de admin no header)
       await authApi.post('/auth/admin', { email, password, name });
-      return {}; // Retorna vazio se deu certo
+      return {}; 
     } catch (error: any) {
       console.error('Erro ao criar admin:', error);
       const errorMsg = error.response?.data?.error || 'Erro desconhecido ao criar administrador.';
@@ -98,7 +91,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(null);
   };
 
-  // 3. Disponibilizamos a função no valor do contexto
   const value = { accessToken, user, loading, signIn, signOut, createAdmin };
 
   if (loading) return null; 

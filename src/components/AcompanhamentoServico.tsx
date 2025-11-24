@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react'
-import { useAuth } from '../hooks/useAuth' // Caminho ajustado
-import api from '../services/api' // Caminho ajustado
+import { useAuth } from '../hooks/useAuth' 
+import api from '../services/api'
 
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card' // Caminho ajustado
-import { Input } from './ui/input' // Caminho ajustado
-import { Label } from './ui/label' // Caminho ajustado
-import { Badge } from './ui/badge' // Caminho ajustado
-import { Progress } from './ui/progress' // Caminho ajustado
-import { Alert, AlertDescription } from './ui/alert' // Caminho ajustado
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card' 
+import { Input } from './ui/input' 
+import { Label } from './ui/label' 
+import { Badge } from './ui/badge' 
+import { Progress } from './ui/progress' 
+import { Alert, AlertDescription } from './ui/alert' 
 
 import {
   Search,
@@ -23,10 +23,7 @@ import {
   DollarSign
 } from 'lucide-react'
 
-// --- DEFINIÇÕES E INTERFACES (Omitidas para brevidade, mas devem estar no arquivo) ---
 
-// Interface Order e funções SIMULATE_PROGRESS e TimelineStep omitidas para brevidade
-// Assume-se que você manteve o código anterior para essas partes.
 interface Order {
   id: string
   number: string 
@@ -40,7 +37,7 @@ interface Order {
   servicesPerformed: Array<{ id: string; service: { name: string } }>
   progressoSimulado: number
 }
-// Função de simulação (SIMULATE_PROGRESS)
+
 const SIMULATE_PROGRESS = (status: string) => {
   switch (status) {
     case 'OPEN': return 10
@@ -49,7 +46,7 @@ const SIMULATE_PROGRESS = (status: string) => {
     default: return 0
   }
 }
-// ----------------------------------------------------------------------
+
 
 const ORDER_STATUS_VALUES: Order['status'][] = ['OPEN', 'IN_PROGRESS', 'FINISHED', 'CANCELED']
 
@@ -273,7 +270,7 @@ export function AcompanhamentoServico() {
       const endpointCandidates = [
         '/clientes/me/ordens',
         '/me/ordens',
-  // Mantemos esse fallback apenas para o caso do backend expor uma rota explícita por cliente.
+  
   ...idCandidates.map((id: string) => `/clientes/${id}/ordens`),
       ].filter(Boolean)
 
@@ -326,14 +323,14 @@ export function AcompanhamentoServico() {
           }
         }
       } catch (error) {
-        // MUITO IMPORTANTE: Se o backend retornar 404 ou 500, o frontend não quebra
+        
         console.error('Erro ao carregar ordens do cliente (API):', error)
         if (isSubscribed) {
-          setOrders([]) // Garante que a lista fique vazia em caso de erro.
+          setOrders([]) 
           setSelectedOrderId(null)
         }
       } finally {
-        // ✅ GARANTE QUE O LOADING TERMINE, INDEPENDENTE DO SUCESSO OU FALHA
+        
         if (isSubscribed) {
           setLoading(false)
         }
@@ -349,7 +346,7 @@ export function AcompanhamentoServico() {
     }
   }, [user])
 
-  // --- Funções de Mapeamento (Permanecem as mesmas) ---
+  
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'OPEN': return 'bg-blue-100 text-blue-800 border-blue-200'
@@ -395,13 +392,13 @@ export function AcompanhamentoServico() {
       order.vehicle.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.vehicle.plate.toLowerCase().includes(searchTerm.toLowerCase())
   )
-  // --- Fim das Funções de Mapeamento ---
+  
 
 
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1>Acompanhar Serviços</h1>
+  <h1 data-testid="client-acompanhamento-title">Acompanhar Serviços</h1>
         <p className="text-gray-600">
           Veja o status dos seus serviços em tempo real
         </p>
@@ -636,12 +633,12 @@ export function AcompanhamentoServico() {
                         </div>
                       </div>
                     ))}
-                    {/* //TODO: Você precisaria de um array de partsUsed no backend para renderizar aqui */}
+                    
                   </div>
                 </CardContent>
               </Card>
 
-              {/* CONTATO */}
+              
               <Card className="bg-blue-50 border-blue-200">
                 <CardContent className="p-4">
                   <div className="flex items-center space-x-4">

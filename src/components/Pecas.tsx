@@ -12,7 +12,6 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Plus, Edit, Trash2, Package, AlertTriangle, CheckCircle, DollarSign, Hash } from 'lucide-react'
 import { toast } from 'sonner'
 
-// MUDANÇA: Tipo de formulário para bater com a interface Peca (sem ID)
 type PecaFormData = Omit<Peca, 'id'>;
 
 export function Pecas() {
@@ -22,7 +21,6 @@ export function Pecas() {
   const [editingPeca, setEditingPeca] = useState<Peca | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   
-  // MUDANÇA: 'formData' atualizado para bater com a interface (sem codigo, estoqueMinimo, fornecedor)
   const [formData, setFormData] = useState<PecaFormData>({
     name: '',
     description: '',
@@ -44,7 +42,6 @@ export function Pecas() {
     }
   }
 
-  // MUDANÇA: 'resetForm' atualizado
   const resetForm = () => {
     setFormData({
       name: '',
@@ -58,7 +55,6 @@ export function Pecas() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    // Prepara dados para enviar (convertendo campos vazios para null)
     const dataToSubmit: PecaFormData = {
       ...formData,
       description: formData.description || null,
@@ -82,12 +78,11 @@ export function Pecas() {
     }
   }
 
-  // MUDANÇA: 'handleEdit' atualizado
   const handleEdit = (peca: Peca) => {
     setEditingPeca(peca)
     setFormData({
       name: peca.name,
-      description: peca.description || '', // Protege contra null
+      description: peca.description || '', 
       price: peca.price,
       stock: peca.stock,
     })
@@ -102,17 +97,15 @@ export function Pecas() {
     } catch (error: any) {
       console.error('Erro ao excluir peça:', error)
       
-      // ✅ AQUI ESTÁ O AJUSTE: Tenta usar a mensagem do erro (que vem do backend)
       const mensagem = error.message || 'Erro ao excluir peça';
       
       toast.error(mensagem);
     }
 }
 
-  // MUDANÇA: 'filteredPecas' atualizado (sem codigo, fornecedor)
   const filteredPecas = pecas.filter(peca =>
     peca.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (peca.description || '').toLowerCase().includes(searchTerm.toLowerCase()) // Protege contra null
+    (peca.description || '').toLowerCase().includes(searchTerm.toLowerCase()) 
   )
 
   const formatCurrency = (value: number) => {
@@ -122,7 +115,6 @@ export function Pecas() {
     }).format(value)
   }
 
-  // MUDANÇA: 'getEstoqueStatus' simplificado (sem estoqueMinimo)
   const getEstoqueStatus = (peca: Peca) => {
     if (peca.stock === 0) {
       return { label: 'Sem Estoque', color: 'bg-red-100 text-red-800 border-red-200', icon: AlertTriangle }
@@ -131,14 +123,13 @@ export function Pecas() {
     }
   }
   
-  // MUDANÇA: Lógica de 'estoqueBaixo' removida
   const pecasSemEstoque = pecas.filter(peca => peca.stock === 0).length
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1>Gestão de Peças</h1>
+          <h1 data-testid="admin-pecas-title">Gestão de Peças</h1>
           <p className="text-gray-600">Controle o estoque de peças da oficina</p>
         </div>
         
@@ -156,7 +147,6 @@ export function Pecas() {
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* MUDANÇA: usa 'name' */}
               <div>
                 <Label htmlFor="name">Nome da Peça</Label>
                 <Input
@@ -168,9 +158,7 @@ export function Pecas() {
                 />
               </div>
               
-              {/* MUDANÇA: Campo 'codigo' REMOVIDO */}
               
-              {/* MUDANÇA: usa 'description' */}
               <div>
                 <Label htmlFor="description">Descrição</Label>
                 <Textarea
@@ -183,7 +171,6 @@ export function Pecas() {
               </div>
               
               <div className="grid grid-cols-2 gap-4">
-                {/* MUDANÇA: usa 'price' */}
                 <div>
                   <Label htmlFor="price">Preço (R$)</Label>
                   <Input
@@ -198,9 +185,7 @@ export function Pecas() {
                   />
                 </div>
                 
-                {/* MUDANÇA: Campo 'fornecedor' REMOVIDO */}
                 
-                {/* MUDANÇA: usa 'stock' */}
                 <div>
                   <Label htmlFor="stock">Estoque Atual</Label>
                   <Input
@@ -215,7 +200,6 @@ export function Pecas() {
                 </div>
               </div>
               
-              {/* MUDANÇA: Campo 'estoqueMinimo' REMOVIDO */}
               
               <div className="flex gap-3 pt-4">
                 <Button type="submit" disabled={loading} className="flex-1">
@@ -235,7 +219,6 @@ export function Pecas() {
         </Dialog>
       </div>
 
-      {/* MUDANÇA: Alerta de 'estoque baixo' REMOVIDO */}
       {pecasSemEstoque > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card className="border-red-200 bg-red-50">
@@ -259,7 +242,6 @@ export function Pecas() {
         <CardContent className="pt-6">
           <div className="flex items-center space-x-2">
             <div className="flex-1">
-              {/* MUDANÇA: Placeholder atualizado */}
               <Input
                 placeholder="Buscar por nome ou descrição..."
                 value={searchTerm}
@@ -270,7 +252,6 @@ export function Pecas() {
         </CardContent>
       </Card>
 
-      {/* Lista de Peças */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -292,7 +273,6 @@ export function Pecas() {
                     <TableHead>Preço</TableHead>
                     <TableHead>Estoque</TableHead>
                     <TableHead>Status</TableHead>
-                    {/* MUDANÇA: Coluna 'Fornecedor' REMOVIDA */}
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -309,9 +289,7 @@ export function Pecas() {
                               <Package className="h-4 w-4 text-blue-600" />
                             </div>
                             <div>
-                              {/* MUDANÇA: usa 'name', 'description' */}
                               <div>{peca.name}</div>
-                              {/* MUDANÇA: Coluna 'codigo' REMOVIDA */}
                               {peca.description && (
                                 <div className="text-xs text-gray-400 truncate max-w-xs">
                                   {peca.description}
@@ -323,12 +301,10 @@ export function Pecas() {
                         <TableCell>
                           <div className="flex items-center gap-1">
                             <DollarSign className="h-3 w-3" />
-                            {/* MUDANÇA: usa 'price' */}
                             {formatCurrency(peca.price)}
                           </div>
                         </TableCell>
                         <TableCell>
-                          {/* MUDANÇA: usa 'stock', remove 'estoqueMinimo' */}
                           <div>Atual: <strong>{peca.stock}</strong></div>
                         </TableCell>
                         <TableCell>
@@ -337,7 +313,6 @@ export function Pecas() {
                             {status.label}
                           </Badge>
                         </TableCell>
-                        {/* MUDANÇA: Coluna 'fornecedor' REMOVIDA */}
                         <TableCell className="text-right">
                           <div className="flex gap-2 justify-end">
                             <Button

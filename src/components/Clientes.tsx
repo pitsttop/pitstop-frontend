@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-// A interface 'Cliente' importada já é a NOVA (com name, phone, etc.)
 import { useApi, Cliente } from '../hooks/useApi' 
 import { Button } from './ui/button'
 import { Input } from './ui/input'
@@ -13,8 +12,7 @@ import { Plus, Edit, Trash2, User, Mail, Phone, MapPin, CreditCard, AlertCircle 
 import { toast } from 'sonner'
 import { isValidPhone, formatPhoneInput, getValidationErrorMessage } from '../utils/validation'
 
-// Tipo para o formulário. Omitimos campos que não vêm do formulário.
-type ClienteFormData = Omit<Cliente, 'id' | 'createdAt'>;
+type ClienteFormData = Omit<Cliente, 'id' | 'createdAt' | 'userId'>;
 
 export function Clientes() {
   const { getClientes, createCliente, updateCliente, deleteCliente, loading } = useApi()
@@ -24,13 +22,11 @@ export function Clientes() {
   const [searchTerm, setSearchTerm] = useState('')
   const [phoneError, setPhoneError] = useState<string | null>(null)
   
-  // MUDANÇA: O estado do formulário agora usa os campos corretos (name, phone, etc.)
-  // e removemos o 'cpf'
   const [formData, setFormData] = useState<ClienteFormData>({
     name: '',
-    email: '', // O formulário usará string, mesmo o tipo podendo ser null
+    email: '', 
     phone: '',
-    address: '', // O formulário usará string, mesmo o tipo podendo ser null
+    address: '', 
   })
 
   useEffect(() => {
@@ -47,7 +43,6 @@ export function Clientes() {
     }
   }
 
-  // MUDANÇA: resetForm atualizado para os campos novos
   const resetForm = () => {
     setFormData({
       name: '',
@@ -78,7 +73,6 @@ export function Clientes() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-     // Valida o telefone
      if (!isValidPhone(formData.phone)) {
        setPhoneError(getValidationErrorMessage('phone', 'phone'))
        toast.error(getValidationErrorMessage('phone', 'phone'))
@@ -86,20 +80,19 @@ export function Clientes() {
      }
      setPhoneError(null)
 
-    // Prepara os dados para enviar, tratando campos nulos
     const dataToSubmit: ClienteFormData = {
       name: formData.name,
       phone: formData.phone,
-      email: formData.email || null, // Envia null se o email estiver vazio
-      address: formData.address || null, // Envia null se o endereço estiver vazio
+      email: formData.email || null, 
+      address: formData.address || null, 
     };
     
     try {
       if (editingCliente) {
-        await updateCliente(editingCliente.id!, dataToSubmit) // MUDANÇA: usa dataToSubmit
+        await updateCliente(editingCliente.id!, dataToSubmit) 
         toast.success('Cliente atualizado com sucesso!')
       } else {
-        await createCliente(dataToSubmit) // MUDANÇA: usa dataToSubmit
+        await createCliente(dataToSubmit) 
         toast.success('Cliente criado com sucesso!')
       }
       
@@ -112,14 +105,13 @@ export function Clientes() {
     }
   }
 
-  // MUDANÇA: handleEdit atualizado para os campos novos
   const handleEdit = (cliente: Cliente) => {
     setEditingCliente(cliente)
     setFormData({
       name: cliente.name,
-      email: cliente.email || '', // Garante que o valor no form não seja null
+      email: cliente.email || '', 
       phone: cliente.phone,
-      address: cliente.address || '' // Garante que o valor no form não seja null
+      address: cliente.address || '' 
     })
      setPhoneError(null)
     setDialogOpen(true)
@@ -136,25 +128,21 @@ export function Clientes() {
     }
   }
 
-  // MUDANÇA: filteredClientes atualizado para os campos novos (name, phone)
-  // e removemos a busca por 'cpf'
   const filteredClientes = clientes.filter(cliente =>
     cliente.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (cliente.email || '').toLowerCase().includes(searchTerm.toLowerCase()) || // Proteção contra null
+    (cliente.email || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
     cliente.phone.includes(searchTerm)
   )
 
-  // MUDANÇA: Removemos a função formatCPF que não é mais usada
 
   const formatPhone = (phone: string) => {
-    // Adiciona uma verificação caso 'phone' seja nulo ou indefinido (embora seja string)
     if (!phone) return 'N/A';
     return phone.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3')
   }
 
   return (
     <div className="p-6 space-y-6">
-      {/* ... (Cabeçalho "Gestão de Clientes" e botão "Novo Cliente" não mudam) ... */}
+     
        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1>Gestão de Clientes</h1>
@@ -175,7 +163,7 @@ export function Clientes() {
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* MUDANÇA: Formulário atualizado para 'name' */}
+
               <div>
                 <Label htmlFor="name">Nome Completo</Label> 
                 <Input
@@ -187,7 +175,6 @@ export function Clientes() {
                 />
               </div>
               
-              {/* MUDANÇA: value do email protegido contra null */}
               <div>
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -199,7 +186,6 @@ export function Clientes() {
                 />
               </div>
               
-              {/* MUDANÇA: Formulário atualizado para 'phone' */}
               <div>
                 <Label htmlFor="phone">Telefone</Label>
                 <Input
@@ -225,9 +211,7 @@ export function Clientes() {
                  )}
               </div>
               
-              {/* MUDANÇA: Div do CPF removida */}
               
-              {/* MUDANÇA: Formulário atualizado para 'address' */}
               <div>
                 <Label htmlFor="address">Endereço</Label>
                 <Input
@@ -256,12 +240,10 @@ export function Clientes() {
         </Dialog>
       </div>
 
-      {/* Busca */}
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center space-x-2">
             <div className="flex-1">
-              {/* MUDANÇA: Placeholder da busca atualizado (sem CPF) */}
               <Input
                 placeholder="Buscar por nome, email ou telefone..."
                 value={searchTerm}
@@ -272,7 +254,6 @@ export function Clientes() {
         </CardContent>
       </Card>
 
-      {/* Lista de Clientes */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -292,7 +273,6 @@ export function Clientes() {
                   <TableRow>
                     <TableHead>Nome</TableHead>
                     <TableHead>Contato</TableHead>
-                    {/* MUDANÇA: Coluna CPF removida */}
                     <TableHead>Endereço</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
@@ -306,7 +286,6 @@ export function Clientes() {
                             <User className="h-4 w-4 text-blue-600" />
                           </div>
                           <div>
-                            {/* MUDANÇA: cliente.nome -> cliente.name */}
                             <div>{cliente.name}</div>
                             <div className="text-sm text-gray-500">
                               Cliente desde {new Date(cliente.createdAt || '').toLocaleDateString('pt-BR')}
@@ -318,23 +297,19 @@ export function Clientes() {
                         <div className="space-y-1">
                           <div className="flex items-center gap-1 text-sm">
                             <Mail className="h-3 w-3" />
-                            {/* MUDANÇA: Proteção contra email nulo */}
                             {cliente.email || 'N/A'}
                           </div>
                           <div className="flex items-center gap-1 text-sm">
                             <Phone className="h-3 w-3" />
-                            {/* MUDANÇA: cliente.telefone -> cliente.phone */}
                             {formatPhone(cliente.phone)}
                           </div>
                         </div>
                       </TableCell>
                       
-                      {/* MUDANÇA: Célula da tabela (TableCell) do CPF foi REMOVIDA */}
                       
                       <TableCell>
                         <div className="flex items-center gap-1 text-sm">
                           <MapPin className="h-3 w-3" />
-                          {/* MUDANÇA: cliente.endereco -> cliente.address */}
                           <span className="truncate max-w-xs" title={cliente.address || ''}>
                             {cliente.address || 'N/A'}
                           </span>
@@ -359,7 +334,6 @@ export function Clientes() {
                               <AlertDialogHeader>
                                 <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  {/* MUDANÇA: cliente.nome -> cliente.name */}
                                   Tem certeza que deseja excluir o cliente "{cliente.name}"? 
                                   Esta ação não pode ser desfeita.
                                 </AlertDialogDescription>

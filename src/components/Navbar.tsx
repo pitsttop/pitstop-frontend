@@ -74,6 +74,7 @@ export function Navbar({ activeTab, onTabChange }: NavbarProps) {
             key={item.id}
             variant={activeTab === item.id ? 'default' : 'ghost'}
             className={`w-full justify-start ${mobile ? 'h-12' : ''}`}
+            data-testid={`admin-nav-${item.id}`}
             onClick={() => {
               onTabChange(item.id)
               if (mobile) setMobileMenuOpen(false)
@@ -89,10 +90,8 @@ export function Navbar({ activeTab, onTabChange }: NavbarProps) {
 
   return (
     <>
-      {/* Desktop Sidebar */}
       <div className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0">
         <div className="flex flex-col flex-grow pt-5 bg-white border-r border-gray-200 overflow-y-auto">
-          {/* Header "Oficina Pro" */}
           <div className="flex items-center flex-shrink-0 px-4">
             <div className="flex items-center">
               <img 
@@ -108,7 +107,6 @@ export function Navbar({ activeTab, onTabChange }: NavbarProps) {
             <div className="flex-1 px-4 pb-4">
               <NavItems />
               
-              {/* User Profile Section - Desktop */}
               <div className="mt-4 pt-4 border-t border-gray-200">
                 <div className="relative">
                   <button
@@ -129,7 +127,6 @@ export function Navbar({ activeTab, onTabChange }: NavbarProps) {
                     <ChevronDown className={`h-4 w-4 flex-shrink-0 transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} />
                   </button>
 
-                  {/* User Menu Dropdown */}
                   {userMenuOpen && (
                     <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
                       <button
@@ -151,11 +148,9 @@ export function Navbar({ activeTab, onTabChange }: NavbarProps) {
         </div>
       </div>
 
-      {/* Mobile Header */}
       <div className="md:hidden">
         <div className="bg-white shadow-sm border-b border-gray-200">
           <div className="flex items-center justify-between p-4">
-            {/* Mobile Menu */}
             <div className="flex items-center gap-3">
               <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
                 <SheetTrigger asChild>
@@ -175,7 +170,6 @@ export function Navbar({ activeTab, onTabChange }: NavbarProps) {
                   </div>
                   <NavItems mobile />
                   
-                  {/* Mobile Logout Button */}
                   <div className="mt-6 pt-4 border-t border-gray-200">
                     <Button 
                       variant="ghost" 
@@ -199,7 +193,6 @@ export function Navbar({ activeTab, onTabChange }: NavbarProps) {
               </div>
             </div>
 
-            {/* Mobile User Avatar Button */}
             <div className="relative">
               <button
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
@@ -212,7 +205,6 @@ export function Navbar({ activeTab, onTabChange }: NavbarProps) {
                 </Avatar>
               </button>
 
-              {/* Mobile User Menu */}
               {userMenuOpen && (
                 <div className="absolute top-full right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-48">
                   <div className="px-4 py-2 border-b border-gray-200">
@@ -238,7 +230,6 @@ export function Navbar({ activeTab, onTabChange }: NavbarProps) {
         </div>
       </div>
 
-      {/* Logout Confirmation Dialog */}
       <Dialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen}>
         <DialogContent className="w-96 max-w-[90vw]">
           <DialogHeader>

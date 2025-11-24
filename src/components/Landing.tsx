@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import api from '../services/api' // Importe sua API
+import api from '../services/api' 
 import {
   UserCircle,
   Tire,
@@ -18,7 +18,6 @@ type LandingProps = {
   onAccess: () => void
 }
 
-// Interfaces para os dados do banco
 interface ServiceItem {
   id: string
   name: string
@@ -37,19 +36,15 @@ const currencyFormatter = new Intl.NumberFormat('pt-BR', {
 })
 
 export function Landing({ onAccess }: LandingProps) {
-  // Estados para os valores selecionados
   const [servicePrice, setServicePrice] = React.useState(0)
   const [partsPrice, setPartsPrice] = React.useState(0)
   
-  // Estados para as listas que vêm do banco
   const [servicesList, setServicesList] = useState<ServiceItem[]>([])
   const [partsList, setPartsList] = useState<PartItem[]>([])
 
-  // Busca dados ao carregar a página
   useEffect(() => {
     async function fetchData() {
       try {
-        // Busca simultânea para ser mais rápido
         const [servicesRes, partsRes] = await Promise.all([
           api.get('/servicos'),
           api.get('/pecas')
@@ -487,14 +482,14 @@ export function Landing({ onAccess }: LandingProps) {
             <li><a href="#orcamento">Orçamento</a></li>
           </ul>
         </nav>
-        <button type="button" className="btn-login" onClick={handleAccess}>
+  <button type="button" className="btn-login" onClick={handleAccess} data-testid="landing-access-button">
           <UserCircle size={18} weight="bold" />
           Minha Conta
         </button>
       </header>
 
       <section className="hero">
-        <h1>Cuidamos do seu carro com paixão clássica e tecnologia moderna.</h1>
+        <h1 data-testid="landing-hero-title">Cuidamos do seu carro com paixão clássica e tecnologia moderna.</h1>
         <p>Manutenção especializada, troca de pneus e elétrica automotiva. A qualidade italiana que seu carro merece.</p>
         <a href="#servicos" className="btn-cta" style={{ backgroundColor: 'var(--secondary-blue)' }}>
           Ver Serviços
@@ -582,7 +577,6 @@ export function Landing({ onAccess }: LandingProps) {
                 onChange={event => setServicePrice(Number(event.target.value))}
               >
                 <option value={0}>Selecione...</option>
-                {/* Preenchemos com os serviços do banco */}
                 {servicesList.map(service => (
                   <option key={service.id} value={service.price}>
                     {service.name} ({currencyFormatter.format(service.price)})
@@ -604,7 +598,6 @@ export function Landing({ onAccess }: LandingProps) {
                 onChange={event => setPartsPrice(Number(event.target.value))}
               >
                 <option value={0}>Nenhuma / Apenas Mão de Obra</option>
-                {/* Preenchemos com as peças do banco */}
                 {partsList.map(part => (
                   <option key={part.id} value={part.price}>
                     {part.name} ({currencyFormatter.format(part.price)})

@@ -217,7 +217,7 @@ export function ClienteDashboard({ onTabChange }: ClienteDashboardProps) {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1>Portal do Cliente</h1>
+        <h1 data-testid="client-dashboard-title">Portal do Cliente</h1>
         <p className="text-gray-600">Gerencie seus serviços e agendamentos</p>
       </div>
 
@@ -243,7 +243,6 @@ export function ClienteDashboard({ onTabChange }: ClienteDashboardProps) {
         </CardContent>
       </Card>
 
-      {/* Quick Actions */}
       <div>
         <h2 className="mb-4 text-xl font-semibold">Ações Rápidas</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

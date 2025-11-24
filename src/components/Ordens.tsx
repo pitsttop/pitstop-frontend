@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-// CORREÇÃO: Alterado de '../hooks/useApi' para '@/hooks/useApi'
 import { useApi, OrdemServico, Cliente, Veiculo, Peca, Servico, OrderStatus } from '../hooks/useApi'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
@@ -91,13 +90,11 @@ export function Ordens() {
   const handleEdit = (ordem: OrdemServico) => {
     setEditingOrdem(ordem)
     
-    // --- Proteção contra undefined (Fio Terra) ---
     const servicosIds = (ordem.servicesPerformed || []).map(s => s.serviceId);
     
     const pecasList = (ordem.partsUsed || [])
       .map(p => ({ id: p.part?.id || '', quantity: p.quantity }))
       .filter(p => p.id);
-    // ---------------------------------------------
 
     setFormData({
       clientId: ordem.clientId,
@@ -406,7 +403,7 @@ export function Ordens() {
     <div className="p-6 space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Ordens de Serviço</h1>
+          <h1 className="text-2xl font-bold text-gray-900" data-testid="admin-ordens-title">Ordens de Serviço</h1>
           <p className="text-gray-600">Gerencie as ordens de serviço da oficina</p>
         </div>
         

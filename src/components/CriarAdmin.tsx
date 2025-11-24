@@ -8,13 +8,13 @@ import { AlertCircle, Shield, Plus, Check } from 'lucide-react'
 import { Alert, AlertDescription } from './ui/alert'
 
 export function CriarAdmin() {
-  const { createAdmin, loading } = useAuth() // Agora createAdmin existe no useAuth!
+  const { createAdmin, loading } = useAuth() 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-  const [isSubmitting, setIsSubmitting] = useState(false) // Estado local para loading do botão
+  const [isSubmitting, setIsSubmitting] = useState(false) 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -38,7 +38,6 @@ export function CriarAdmin() {
 
     setIsSubmitting(true)
     
-    // Chama a função do hook que conecta na API
     const result = await createAdmin(email, password, name)
     
     setIsSubmitting(false)
@@ -56,7 +55,7 @@ export function CriarAdmin() {
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+  <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2" data-testid="admin-criar-admin-title">
           <Shield className="h-8 w-8 text-blue-600" />
           Criar Novo Administrador
         </h2>

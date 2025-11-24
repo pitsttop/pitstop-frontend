@@ -7,12 +7,10 @@ import { Textarea } from './ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table'
-// MUDANÇA: Imports não utilizados removidos (Badge, Select)
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './ui/alert-dialog'
 import { Plus, Edit, Trash2, Settings, DollarSign } from 'lucide-react'
 import { toast } from 'sonner'
 
-// MUDANÇA: Tipo de formulário para bater com a interface Servico (sem ID)
 type ServicoFormData = Omit<Servico, 'id'>;
 
 export function Servicos() {
@@ -21,16 +19,13 @@ export function Servicos() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingServico, setEditingServico] = useState<Servico | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
-  // MUDANÇA: Filtro de categoria removido
   
-  // MUDANÇA: 'formData' atualizado para bater com a interface (sem tempoDuracao, categoria)
   const [formData, setFormData] = useState<ServicoFormData>({
     name: '',
     description: '',
     price: 0,
   })
 
-  // MUDANÇA: Array de 'categorias' removido
 
   useEffect(() => {
     loadServicos()
@@ -46,7 +41,6 @@ export function Servicos() {
     }
   }
 
-  // MUDANÇA: 'resetForm' atualizado
   const resetForm = () => {
     setFormData({
       name: '',
@@ -59,7 +53,6 @@ export function Servicos() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    // Prepara dados para enviar (convertendo campos vazios para null)
     const dataToSubmit: ServicoFormData = {
       ...formData,
       description: formData.description || null,
@@ -83,12 +76,11 @@ export function Servicos() {
     }
   }
 
-  // MUDANÇA: 'handleEdit' atualizado
   const handleEdit = (servico: Servico) => {
     setEditingServico(servico)
     setFormData({
       name: servico.name,
-      description: servico.description || '', // Protege contra null
+      description: servico.description || '', 
       price: servico.price,
     })
     setDialogOpen(true)
@@ -102,22 +94,18 @@ export function Servicos() {
     } catch (error: any) {
       console.error('Erro ao excluir serviço:', error)
       
-      // TENTATIVA 1: O 'useApi' já extraiu a mensagem para error.message?
       if (error.message) {
           toast.error(error.message);
       } 
-      // TENTATIVA 2: O erro é apenas uma string?
       else if (typeof error === 'string') {
           toast.error(error);
       }
-      // FALLBACK: Se não for nada disso, usa a mensagem padrão
       else {
           toast.error('Erro ao excluir serviço');
       }
     }
   }
 
-  // MUDANÇA: 'filteredServicos' atualizado (sem categoria)
   const filteredServicos = servicos.filter(servico => {
     const matchesSearch = (
       servico.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -134,13 +122,12 @@ export function Servicos() {
     }).format(value)
   }
 
-  // MUDANÇA: Funções 'formatDuration', 'getCategoryColor', 'uniqueCategories' removidas
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1>Catálogo de Serviços</h1>
+          <h1 data-testid="admin-servicos-title">Catálogo de Serviços</h1>
           <p className="text-gray-600">Gerencie os serviços oferecidos pela oficina</p>
         </div>
         
@@ -158,7 +145,6 @@ export function Servicos() {
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* MUDANÇA: usa 'name' */}
               <div>
                 <Label htmlFor="name">Nome do Serviço</Label>
                 <Input
@@ -170,9 +156,7 @@ export function Servicos() {
                 />
               </div>
               
-              {/* MUDANÇA: Campo 'categoria' REMOVIDO */}
               
-              {/* MUDANÇA: usa 'description' */}
               <div>
                 <Label htmlFor="description">Descrição</Label>
                 <Textarea
@@ -184,8 +168,7 @@ export function Servicos() {
                 />
               </div>
               
-              <div className="grid grid-cols-1"> {/* MUDANÇA: Apenas um campo agora */}
-                {/* MUDANÇA: usa 'price' */}
+              <div className="grid grid-cols-1"> 
                 <div>
                   <Label htmlFor="price">Preço (R$)</Label>
                   <Input
@@ -200,7 +183,6 @@ export function Servicos() {
                   />
                 </div>
                 
-                {/* MUDANÇA: Campo 'tempoDuracao' REMOVIDO */}
               </div>
               
               <div className="flex gap-3 pt-4">
@@ -221,24 +203,21 @@ export function Servicos() {
         </Dialog>
       </div>
 
-      {/* Filtros */}
       <Card>
         <CardContent className="pt-6">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
-              {/* MUDANÇA: Placeholder atualizado */}
               <Input
                 placeholder="Buscar por nome ou descrição..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            {/* MUDANÇA: Filtro de 'categoria' REMOVIDO */}
+            
           </div>
         </CardContent>
       </Card>
 
-      {/* Lista de Serviços */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -259,9 +238,7 @@ export function Servicos() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Serviço</TableHead>
-                    {/* MUDANÇA: Coluna 'Categoria' REMOVIDA */}
                     <TableHead>Preço</TableHead>
-                    {/* MUDANÇA: Coluna 'Duração' REMOVIDA */}
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -274,7 +251,6 @@ export function Servicos() {
                             <Settings className="h-4 w-4 text-blue-600" />
                           </div>
                           <div>
-                            {/* MUDANÇA: usa 'name' e 'description' */}
                             <div>{servico.name}</div>
                             {servico.description && (
                               <div className="text-sm text-gray-500 truncate max-w-xs">
@@ -284,15 +260,12 @@ export function Servicos() {
                           </div>
                         </div>
                       </TableCell>
-                      {/* MUDANÇA: Coluna 'Categoria' REMOVIDA */}
                       <TableCell>
                         <div className="flex items-center gap-1">
                           <DollarSign className="h-3 w-3" />
-                          {/* MUDANÇA: usa 'price' */}
                           {formatCurrency(servico.price)}
                         </div>
                       </TableCell>
-                      {/* MUDANÇA: Coluna 'Duração' REMOVIDA */}
                       <TableCell className="text-right">
                         <div className="flex gap-2 justify-end">
                           <Button
@@ -312,7 +285,6 @@ export function Servicos() {
                               <AlertDialogHeader>
                                 <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  {/* MUDANÇA: usa 'name' */}
                                   Tem certeza que deseja excluir o serviço "{servico.name}"? 
                                   Esta ação não pode ser desfeita.
                                 </AlertDialogDescription>
@@ -339,7 +311,6 @@ export function Servicos() {
         </CardContent>
       </Card>
       
-      {/* MUDANÇA: Card "Resumo por Categoria" REMOVIDO */}
     </div>
   )
 }

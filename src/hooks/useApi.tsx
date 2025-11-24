@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import api from '../services/api';
 
-// --- INTERFACES CORRIGIDAS (para bater com o schema.prisma) ---
 
 export enum UserRole {
   ADMIN = 'ADMIN',
@@ -15,7 +14,6 @@ export enum OrderStatus {
   CANCELED = 'CANCELED',
 }
 
-// Interfaces para as Relações (Muitos-para-Muitos)
 export interface PartUsage {
   id: string
   quantity: number
@@ -31,7 +29,6 @@ export interface ServiceUsage {
   service: Servico
 }
 
-// Interfaces Principais
 export interface User {
   id: string
   email: string
@@ -40,19 +37,18 @@ export interface User {
   createdAt: string 
 }
 
-export interface Cliente { // Model Client
+export interface Cliente { 
   id: string
   name: string
   phone: string
   email: string | null 
   address: string | null 
   createdAt: string
-  userId: string; // Adicionado para a rota de cadastro funcionar
-  // vehicles?: Veiculo[]
-  // orders?: OrdemServico[]
+  userId: string; 
+
 }
 
-export interface Veiculo { // Model Vehicle
+export interface Veiculo { 
   id: string
   plate: string
   model: string
@@ -60,12 +56,10 @@ export interface Veiculo { // Model Vehicle
   year: number
   color: string | null 
   createdAt: string
-  ownerId: string; // É o ID do Cliente que aponta para o dono
-  // owner?: Cliente
-  // orders?: OrdemServico[]
+  ownerId: string; 
 }
 
-export interface OrdemServico { // Model Order
+export interface OrdemServico { 
   id: string
   description: string
   status: OrderStatus 
@@ -83,7 +77,7 @@ export interface OrdemServico { // Model Order
   
 }
 
-export interface Peca { // Model Part
+export interface Peca { 
   id: string
   name: string
   description: string | null 
@@ -91,7 +85,7 @@ export interface Peca { // Model Part
   stock: number
 }
 
-export interface Servico { // Model Service
+export interface Servico { 
   id: string
   name: string
   description: string | null 
@@ -110,12 +104,10 @@ export interface DashboardStats {
   receita: number
 }
 
-// --- FUNÇÕES DO HOOK ---
 
 export function useApi() {
   const [loading, setLoading] = useState(false);
 
-  // --- FUNÇÃO makeRequest USANDO AXIOS ---
   const makeRequest = async (endpoint: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' = 'GET', data?: any) => {
     setLoading(true);
     try {
@@ -137,9 +129,7 @@ export function useApi() {
     }
   }
 
-  // --- FUNÇÕES DO CRUD ---
 
-  // Dashboard
   const getDashboardStats = async (): Promise<DashboardStats> => {
     const res: any = await makeRequest('/dashboard', 'GET');
     return {
@@ -151,15 +141,19 @@ export function useApi() {
       ordensAbertas: res.ordersByStatus?.OPEN ?? 0,
       ordensAndamento: res.ordersByStatus?.IN_PROGRESS ?? 0,
       ordensConcluidas: res.ordersByStatus?.FINISHED ?? 0,
-      // Receita Total: Lendo o valor que o Backend envia
       receita: res.totalRevenue ?? 0,
     } as DashboardStats;
   }
 
-  // Clientes, Veículos, Peças, Serviços (mantidos iguais)
   const getClientes = async (): Promise<Cliente[]> => makeRequest('/clientes', 'GET');
-  const createCliente = async (cliente: Omit<Cliente, 'id' | 'createdAt'>): Promise<Cliente> => makeRequest('/clientes', 'POST', cliente);
-  const updateCliente = async (id: string, cliente: Partial<Omit<Cliente, 'id' | 'createdAt'>>): Promise<Cliente> => makeRequest(`/clientes/${id}`, 'PUT', cliente);
+  const createCliente = async (
+    cliente: Omit<Cliente, 'id' | 'createdAt' | 'userId'> & { userId?: string },
+  ): Promise<Cliente> => makeRequest('/clientes', 'POST', cliente);
+
+  const updateCliente = async (
+    id: string,
+    cliente: Partial<Omit<Cliente, 'id' | 'createdAt' | 'userId'> & { userId?: string }>,
+  ): Promise<Cliente> => makeRequest(`/clientes/${id}`, 'PUT', cliente);
   const deleteCliente = async (id: string): Promise<void> => makeRequest(`/clientes/${id}`, 'DELETE');
   const getVeiculos = async (): Promise<Veiculo[]> => makeRequest('/veiculos', 'GET');
   const createVeiculo = async (veiculo: Omit<Veiculo, 'id' | 'createdAt'>): Promise<Veiculo> => makeRequest('/veiculos', 'POST', veiculo);
@@ -174,7 +168,6 @@ export function useApi() {
   const updateServico = async (id: string, servico: Partial<Omit<Servico, 'id'>>): Promise<Servico> => makeRequest(`/servicos/${id}`, 'PUT', servico);
   const deleteServico = async (id: string): Promise<void> => makeRequest(`/servicos/${id}`, 'DELETE');
   
-  // --- FUNÇÕES DE ORDEM DE SERVIÇO CORRIGIDAS ---
   
   const getOrdens = async (): Promise<OrdemServico[]> => makeRequest('/ordens', 'GET');
 
@@ -182,24 +175,19 @@ export function useApi() {
     return makeRequest('/ordens', 'POST', ordem);
   }
 
-  // MUDANÇA: Função de atualização de Status (PATCH)
-  // Aceita o payload completo para o PATCH (status, totalValue, endDate)
   const updateOrdemStatus = async (
     id: string,
-    payload: { status: OrderStatus | string; totalValue: number | null, endDate?: string } // Payload completo para o PATCH
+    payload: { status: OrderStatus | string; totalValue: number | null, endDate?: string } 
   ) => {
-    // A rota PATCH /ordens/:id/status precisa receber o status E o valor
     return makeRequest(`/ordens/${id}/status`, 'PATCH', payload);
   }
   
-  // Função de atualização de Detalhes da Ordem (PUT)
   const updateOrdem = async (id: string, ordem: Partial<Omit<OrdemServico, 'id' | 'createdAt' | 'updatedAt' | 'partsUsed' | 'servicesPerformed'>>): Promise<OrdemServico> => {
     return makeRequest(`/ordens/${id}`, 'PUT', ordem);
   }
 
   const deleteOrdem = async (id: string): Promise<void> => makeRequest(`/ordens/${id}`, 'DELETE');
 
-  // Funções de Itens
   
   const addPartToOrdem = async (orderId: string, partId: string, quantity: number) => {
     return makeRequest(`/ordens/${orderId}/pecas`, 'POST', { partId, quantity });
@@ -209,15 +197,14 @@ export function useApi() {
     return makeRequest(`/ordens/${orderId}/servicos`, 'POST', { serviceId });
   }
   
-  // --- EXPORTAÇÃO ---
   return {
     loading,
     getDashboardStats,
     getClientes, createCliente, updateCliente, deleteCliente,
     getVeiculos, createVeiculo, updateVeiculo, deleteVeiculo,
-    getOrdens, createOrdem, updateOrdem, deleteOrdem, updateOrdemStatus, // Exporta a nova função
+    getOrdens, createOrdem, updateOrdem, deleteOrdem, updateOrdemStatus,
     getPecas, createPeca, updatePeca, deletePeca,
     getServicos, createServico, updateServico, deleteServico,
-    addPartToOrdem, addServiceToOrdem, // Exporta as funções de adição
+    addPartToOrdem, addServiceToOrdem, 
   }
 }

@@ -12,7 +12,6 @@ import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popove
 import { Calendar as CalendarIcon, Clock, Car, MapPin, Wrench} from 'lucide-react'
 import { toast } from 'sonner'
 
-// Funções auxiliares (mantidas iguais)
 const normalizeVehicle = (vehicle: any) => {
   if (!vehicle || typeof vehicle !== 'object') return null
   const marca = vehicle.marca ?? vehicle.brand ?? vehicle.make ?? ''
@@ -33,7 +32,6 @@ const normalizeVehicleList = (data: any): any[] | null => {
   return candidate.map(normalizeVehicle).filter(Boolean)
 }
 
-// Interface para os serviços do banco
 interface ServiceItem {
   id: string
   name: string
@@ -62,29 +60,25 @@ interface StoredAppointment {
 export function Agendamento() {
   const { user, accessToken } = useAuth()
   
-  // Estados
   const [vehicles, setVehicles] = useState<any[]>([])
-  const [servicesList, setServicesList] = useState<ServiceItem[]>([]) // Lista que vem do banco
+  const [servicesList, setServicesList] = useState<ServiceItem[]>([]) 
   const [loadingVehicles, setLoadingVehicles] = useState(false)
   
   const [selectedDate, setSelectedDate] = useState<Date>()
   const [selectedTime, setSelectedTime] = useState('')
   
-  // Agora guardamos o ID do serviço selecionado
   const [selectedServiceId, setSelectedServiceId] = useState('')
   
   const [description, setDescription] = useState('')
   const [vehicleInfo, setVehicleInfo] = useState({ marca: '', modelo: '', placa: '' })
   const [loading, setLoading] = useState(false)
 
-  // Horários fixos (pode vir do banco futuramente)
   const availableTimes = [
     '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
     '11:00', '11:30', '13:00', '13:30', '14:00', '14:30',
     '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00'
   ]
 
-  // 1. Buscar Serviços do Banco
   useEffect(() => {
     const fetchServices = async () => {
       if (!accessToken) return
@@ -99,7 +93,6 @@ export function Agendamento() {
     fetchServices()
   }, [accessToken])
 
-  // 2. Buscar Veículos do Cliente
   useEffect(() => {
     const fetchVehicles = async () => {
       if (!accessToken || !user) return
@@ -109,12 +102,10 @@ export function Agendamento() {
 
       setLoadingVehicles(true)
       try {
-        // Tenta a rota padrão configurada
         const response = await api.get(`/clientes/${userId}/veiculos`)
         const list = normalizeVehicleList(response.data)
         if (list) setVehicles(list)
       } catch (error) {
-        // Se falhar, tenta rota alternativa ou apenas loga
         console.warn("Falha ao buscar veículos na rota principal")
       } finally {
         setLoadingVehicles(false)
@@ -135,8 +126,7 @@ export function Agendamento() {
     setLoading(true)
     
     try {
-      // TODO: Aqui você fará o POST /ordens futuramente
-      // Por enquanto é só simulação
+      
       await new Promise(resolve => setTimeout(resolve, 1500))
 
       const authUserId = user?.id ?? user?.userId ?? user?.clientId ?? user?.clienteId
@@ -181,7 +171,6 @@ export function Agendamento() {
       
       toast.success('Agendamento solicitado com sucesso!')
       
-      // Reset form
       setSelectedDate(undefined)
       setSelectedTime('')
       setSelectedServiceId('')
@@ -197,13 +186,12 @@ export function Agendamento() {
 
   const isFormValid = selectedDate && selectedTime && selectedServiceId && vehicleInfo.marca
 
-  // Encontrar o serviço selecionado para mostrar detalhes (preço)
   const selectedServiceObj = servicesList.find(s => s.id === selectedServiceId)
 
   return (
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Agendar Serviço</h1>
+        <h1 className="text-2xl font-bold text-gray-900" data-testid="client-agendamento-title">Agendar Serviço</h1>
         <p className="text-gray-600">Marque um horário para levar seu veículo à oficina</p>
       </div>
 
@@ -211,7 +199,6 @@ export function Agendamento() {
         <div className="lg:col-span-2">
           <form onSubmit={handleSubmit} className="space-y-6">
             
-            {/* Seleção de Veículo */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center text-lg">
@@ -253,11 +240,10 @@ export function Agendamento() {
               </CardContent>
             </Card>
 
-            {/* Informações do Serviço (AGORA DINÂMICO) */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center text-lg">
-                  <Wrench className="mr-2 h-5 w-5 text-blue-600" /> {/* Troquei Clock por Wrench que faz mais sentido */}
+                  <Wrench className="mr-2 h-5 w-5 text-blue-600" /> 
                   Informações do Serviço
                 </CardTitle>
               </CardHeader>
@@ -280,7 +266,6 @@ export function Agendamento() {
                       )}
                     </SelectContent>
                   </Select>
-                  {/* Mostra o preço estimado se selecionado */}
                   {selectedServiceObj && (
                     <p className="text-sm text-gray-500 mt-1 ml-1">
                       Valor estimado: <span className="font-semibold text-green-600">R$ {selectedServiceObj.price.toFixed(2)}</span>
@@ -301,7 +286,6 @@ export function Agendamento() {
               </CardContent>
             </Card>
 
-            {/* Data e Horário */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center text-lg">
@@ -333,7 +317,6 @@ export function Agendamento() {
                           disabled={(date) => {
                             const today = new Date()
                             today.setHours(0, 0, 0, 0)
-                            // Desabilita passado e domingos
                             return date < today || date.getDay() === 0
                           }}
                           initialFocus
@@ -367,7 +350,6 @@ export function Agendamento() {
           </form>
         </div>
 
-        {/* Resumo Lateral */}
         <div className="space-y-6">
           {(selectedDate || selectedTime || selectedServiceId) && (
             <Card className="bg-blue-50/50 border-blue-100">

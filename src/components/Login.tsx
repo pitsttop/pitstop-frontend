@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import authApi from '../services/authApi'
-import api from '../services/api' // <--- IMPORTANTE: Importar a API do Backend
+import api from '../services/api' 
 import {
   ArrowLeft,
   Lock,
@@ -88,7 +88,6 @@ export function Login({ onBack }: LoginProps) {
     }
 
     try {
-      // --- PASSO 1: Criar o Login no Auth (Porta 3002) ---
       const response = await authApi.post('/auth/signup', {
         name: regName,
         email: regEmail,
@@ -98,8 +97,6 @@ export function Login({ onBack }: LoginProps) {
       const token = response.data?.accessToken;
 
       if (token) {
-        // --- PASSO 2: Criar o Cliente no Backend (Porta 3001) ---
-        // Aqui usamos o token que acabamos de receber para autorizar a criação
         try {
           await api.post('/clientes', {
             name: regName,
@@ -108,24 +105,20 @@ export function Login({ onBack }: LoginProps) {
             address: regAddress
           }, {
             headers: {
-              Authorization: `Bearer ${token}` // <--- O Pulo do Gato
+              Authorization: `Bearer ${token}` 
             }
           });
         } catch (backendError) {
           console.error('Erro ao criar perfil no backend:', backendError);
-          // Não vamos travar o cadastro aqui, mas é bom saber se falhou
         }
 
-        // --- PASSO 3: Logar o usuário ---
         localStorage.setItem('accessToken', token)
         showMessage('Conta criada com sucesso! Entrando...', 'success')
         
-        // Recarrega para o useAuth pegar o token e configurar tudo
         setTimeout(() => window.location.reload(), 1000)
         return
       }
 
-      // Fallback caso o signup não retorne token (não deve acontecer se a API estiver certa)
       await signIn(regEmail, regPassword)
       showMessage('Conta criada com sucesso! Você já pode acessar.', 'success')
       setActiveTab('login')
@@ -352,13 +345,16 @@ export function Login({ onBack }: LoginProps) {
       )}
 
       <div className="auth-container">
-        <div className={`message-box ${message ? `visible ${message.type}` : ''}`}>
+        <div
+          className={`message-box ${message ? `visible ${message.type}` : ''}`}
+          data-testid="login-feedback"
+        >
           {message?.text}
         </div>
 
         <div className="auth-header">
           <img src="/Pitstop.png" alt="Logo PitStop" />
-          <h1>Entre na sua conta</h1>
+          <h1 data-testid="login-heading">Entre na sua conta</h1>
           <p>Se não tiver, cadastre-se</p>
         </div>
 
@@ -397,6 +393,7 @@ export function Login({ onBack }: LoginProps) {
                   type="email"
                   placeholder="E-mail"
                   value={loginEmail}
+                  data-testid="login-email-input"
                   onChange={(event) => setLoginEmail(event.target.value)}
                   required
                 />
@@ -408,11 +405,17 @@ export function Login({ onBack }: LoginProps) {
                   type="password"
                   placeholder="Senha"
                   value={loginPassword}
+                  data-testid="login-password-input"
                   onChange={(event) => setLoginPassword(event.target.value)}
                   required
                 />
               </div>
-              <button className="btn-submit" type="submit" disabled={loading}>
+              <button
+                className="btn-submit"
+                type="submit"
+                disabled={loading}
+                data-testid="login-submit-button"
+              >
                 {loading ? 'Entrando...' : 'Entrar no Sistema'}
               </button>
             </form>

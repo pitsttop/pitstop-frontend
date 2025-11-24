@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { AuthProvider, useAuth } from './hooks/useAuth'
-import { jwtDecode } from 'jwt-decode' // <-- MUDANÇA 1: Importa o decodificador
+import { jwtDecode } from 'jwt-decode' 
 import { Login } from './components/Login'
 import Landing from './components/Landing'
 import { Navbar } from './components/Navbar'
@@ -17,21 +17,16 @@ import { Servicos } from './components/Servicos'
 import { CriarAdmin } from './components/CriarAdmin'
 import { Toaster } from './components/ui/sonner'
 
-// Helper: Define o formato do que está DENTRO da "pulseira" (JWT)
 type JwtPayload = {
   userId: string;
   role: 'ADMIN' | 'CLIENT';
-  // (adicione 'iat', 'exp' se precisar)
 }
 
 function AppContent() {
-  // MUDANÇA 2: Pegamos o 'accessToken', e não o 'user'
   const { accessToken, loading } = useAuth()
   const [showLogin, setShowLogin] = useState(false)
   const [activeTab, setActiveTab] = useState('dashboard')
-  // MUDANÇA 3: Removemos o 'supabaseConfigured' (lixo antigo)
 
-  // (O bloco de verificação do Supabase foi removido)
 
   if (loading) {
     return (
@@ -44,20 +39,15 @@ function AppContent() {
     )
   }
 
-  // --- MUDANÇA 4: O "PORTEIRO" CORRIGIDO ---
   
-  // Se não tem "pulseira" (accessToken), mostra a Landing ou o Login quando o usuário clicar em Acessar.
   if (!accessToken) {
     return showLogin ? <Login onBack={() => setShowLogin(false)} /> : <Landing onAccess={() => setShowLogin(true)} />
   }
 
-  // Se TEM a "pulseira", decodifica ela para saber quem é o usuário
   const user = jwtDecode<JwtPayload>(accessToken);
 
-  // Agora podemos checar o cargo (role)
   const isAdmin = user?.role === 'ADMIN'
   
-  // O resto do seu código já estava perfeito
   const renderAdminContent = () => {
     switch (activeTab) {
       case 'dashboard':
@@ -100,14 +90,12 @@ function AppContent() {
         <ClienteNavbar activeTab={activeTab} onTabChange={setActiveTab} />
       )}
       
-      {/* Desktop Layout */}
       <div className="hidden md:block md:pl-64">
         <main className="min-h-screen">
           {isAdmin ? renderAdminContent() : renderClienteContent()}
         </main>
       </div>
 
-      {/* Mobile Layout */}
       <div className="md:hidden">
         <main className="min-h-screen pt-16">
           {isAdmin ? renderAdminContent() : renderClienteContent()}

@@ -1,7 +1,6 @@
 // src/services/authApi.ts
 import axios from 'axios';
 
-// Lê a nova variável do .env
 const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL;
 
 const authApi = axios.create({
